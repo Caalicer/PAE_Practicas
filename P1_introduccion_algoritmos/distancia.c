@@ -1,29 +1,114 @@
 /**
  * @brief Template for Labs
- * 
- * PAE [G4011452] Labs
- * Last update: 
+ *
+ * PAE [G4012452] Labs
+ * Last update: 03/02/2025
  * Issue date:  30/01/2022
- * 
- * Student name: 
+ *
+ * Student name: Jorge Lojo Abal y Pablo Liste Cancela
  *
  */
 
-// General utilities
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/time.h>
+#include <math.h>
 
-// Custon utilities (in case of need) 
+#define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
 
-// Implement the exercise in a function here
+/**
+ *
+ * @brief Function that performs euclidean distance between two vectors
+ * @param n Size of the vectors
+ * @param x Vector x
+ * @param y Vector y
+ * @return void
+ *
+ */
+double euclidean_distance(size_t n, float *x, float *y);
 
+/**
+ *
+ * @brief Main function
+ * @param argc Number of arguments
+ * @param argv Array of arguments
+ * @return int
+ *
+ */
+int main(int argc, char *argv[]) {
 
-// Main program
-int main(int argc, char *argv[])
-{ 
+    if (argc > 2) {
+        printf("Usage: %s [n]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    size_t n = DEFAULT_N;
+
+    if (argc > 1) {
+        n = atoll(argv[1]); // Primer argumento: tamaño del array
+    }
+
+    // Allocate memory for the vectors
+    float *x = (float *)malloc(n * sizeof(float));
+    float *y = (float *)malloc(n * sizeof(float));
+
+    // Check if the memory has been allocated
+    if (x == NULL || y == NULL) {
+        printf("Error: Memory could not be allocated\n");
+        return EXIT_FAILURE;
+    }
+
+    struct timeval start;
+    struct timeval start2;
+    struct timeval end;
+
+    // Initialize the seed
+    srand(time(NULL));
+
+    // Initialize the vectors
+    for (int i = 0; i < n; i++) {
+
+        x[i] = rand() % 10;
+        y[i] = rand() % 10;
+
+    }
+
     // start timer
+    gettimeofday(&start, NULL);
+    gettimeofday(&start2, NULL);
 
     // call the function
+    double result = euclidean_distance(n, x, y);
 
     // stop timer
+    gettimeofday(&end, NULL);
 
-    return 0;
+    free(x);
+    free(y);
+
+    // Calculate the elapsed time
+    double overhead = (start2.tv_sec - start.tv_sec) + (start2.tv_usec - start.tv_usec) / 1e6;
+    double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
+
+    // Print the results
+    printf("PAE | Time: %f | Result: %f\n", time, result);
+
+    return EXIT_SUCCESS;
+
+}
+
+double euclidean_distance(size_t n, float *x, float *y) {
+
+    double result = 0;
+
+    for (int i = 0; i < n; i++) {
+
+        double temp = x[i] - y[i];
+        result += temp * temp;
+
+    }
+
+    return sqrt(result);
+
 }
