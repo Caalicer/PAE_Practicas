@@ -27,7 +27,7 @@
  * @return void
  *
  */
-void daxpy(size_t n, float a, float *x, float *y);
+void daxpy(size_t n, double a, double *x, double *y);
 
 /**
  *
@@ -57,8 +57,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Allocate memory for the vectors
-    float *x = (float *)malloc(n * sizeof(float));
-    float *y = (float *)malloc(n * sizeof(float));
+    double *x = (double *)malloc(n * sizeof(double));
+    double *y = (double *)malloc(n * sizeof(double));
 
     // Check if the memory has been allocated
     if (x == NULL || y == NULL) {
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 
 }
 
-void daxpy(size_t n, float a, float *x, float *y) {
+void daxpy(size_t n, double a, double *x, double *y) {
 
     for (int i = 0; i < n; i++) {
 

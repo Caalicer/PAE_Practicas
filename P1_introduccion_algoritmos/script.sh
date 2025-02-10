@@ -17,7 +17,7 @@ max_iter=10
 
 for i in $(seq 1 $max_iter)
 do
-    output=$(./main 2 100000)
+    output=$(./main)
     time=$(echo "$output" | grep "PAE | Time:" | awk '{print $4}')
     echo "Execution $i: $time seconds"
     sum_time=$(echo "$sum_time + $time" | bc)

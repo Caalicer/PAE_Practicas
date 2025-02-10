@@ -15,7 +15,7 @@
 #include <sys/time.h>
 #include <math.h>
 
-#define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
+#define DEFAULT_N ((2.5 * 1024 * 1024 * 1024) / sizeof(float))
 
 /**
  *
@@ -26,7 +26,7 @@
  * @return void
  *
  */
-double euclidean_distance(size_t n, float *x, float *y);
+float euclidean_distance(size_t n, float *x, float *y);
 
 /**
  *
@@ -50,8 +50,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Allocate memory for the vectors
-    double *x = (double *)malloc(n * sizeof(double));
-    double *y = (double *)malloc(n * sizeof(double));
+    float *x = (float *)malloc(n * sizeof(float));
+    float *y = (float *)malloc(n * sizeof(float));
 
     // Check if the memory has been allocated
     if (x == NULL || y == NULL) {
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     gettimeofday(&start2, NULL);
 
     // call the function
-    double result = euclidean_distance(n, x, y);
+    float result = euclidean_distance(n, x, y);
 
     // stop timer
     gettimeofday(&end, NULL);
@@ -98,13 +98,13 @@ int main(int argc, char *argv[]) {
 
 }
 
-double euclidean_distance(size_t n, float *x, float *y) {
+float euclidean_distance(size_t n, float *x, float *y) {
 
-    double result = 0;
+    float result = 0;
 
     for (int i = 0; i < n; i++) {
 
-        double temp = x[i] - y[i];
+        float temp = x[i] - y[i];
         result += temp * temp;
 
     }
