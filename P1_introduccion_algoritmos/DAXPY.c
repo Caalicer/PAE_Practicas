@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     srand(time(NULL));
 
     // Initialize the vectors
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 
         x[i] = rand() % 10;
         y[i] = rand() % 10;
@@ -94,16 +94,16 @@ int main(int argc, char *argv[]) {
     // Stop timer
     gettimeofday(&end, NULL);
 
-    // Free memory
-    free(x);
-    free(y);
-
     // Calculate the elapsed time
     double overhead = (start2.tv_sec - start.tv_sec) + (start2.tv_usec - start.tv_usec) / 1e6;
     double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
 
     // Print the results
-    printf("PAE | Time: %f | Result: %f", time, y[0]);
+    printf("PAE | Time: %f | Result: %f\n", time, y[0]);
+
+    // Free memory
+    free(x);
+    free(y);
 
     return EXIT_SUCCESS;
 
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 
 void daxpy(size_t n, double a, double *x, double *y) {
 
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 
         y[i] += a * x[i];
 

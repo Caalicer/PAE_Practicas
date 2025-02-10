@@ -15,6 +15,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
+#include <string.h>
 
 // The file loadPGM.h will be used for defining load and export functions
 #include "pgmio.h"
@@ -29,7 +30,7 @@
  * @param h Image height
  * @param hist Histogram array
  */
-void calculateHistogram(unsigned char* xu8, int w, int h, int* hist);
+void calculateHistogram(unsigned char* xu8, size_t w, size_t h, int* hist);
 
 /**
  * @brief Print the histogram of an image
@@ -83,7 +84,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Histogram array
-    int hist[GRAY_LEVELS] = {0};
+    int hist[GRAY_LEVELS];
+    memset(hist, 0, sizeof(int) * GRAY_LEVELS);
 
     // Start timer
     gettimeofday(&start, NULL);
@@ -101,7 +103,9 @@ int main(int argc, char *argv[]) {
     #endif
 
     // Free memory
-    free(xu8);
+    if (xu8) {
+        free(xu8);
+    }
 
     // Calculate the elapsed time
     double overhead = (start2.tv_sec - start.tv_sec) + (start2.tv_usec - start.tv_usec) / 1e6;
@@ -114,10 +118,10 @@ int main(int argc, char *argv[]) {
 
 }
 
-void calculateHistogram(unsigned char* xu8, int w, int h, int* hist) {
+void calculateHistogram(unsigned char* xu8, size_t w, size_t h, int* hist) {
 
     // Calculate histogram
-    for (int i = 0; i < w * h; i++) {
+    for (size_t i = 0; i < w * h; i++) {
 
         hist[xu8[i]]++;
 

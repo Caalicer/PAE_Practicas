@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     srand(time(NULL));
 
     // Initialize the vectors
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 
         x[i] = rand() % 10;
         y[i] = rand() % 10;
@@ -107,7 +107,7 @@ float euclidean_distance(size_t n, float *x, float *y) {
 
     float result = 0;
 
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 
         float temp = x[i] - y[i];
         result += temp * temp;
