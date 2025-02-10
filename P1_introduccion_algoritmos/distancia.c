@@ -44,13 +44,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Initialize the size of the vectors
-    size_t n = DEFAULT_N;
-
-    // Check if the user has provided the values for n
-    if (argc > 1) {
-        n = atoll(argv[1]);
-    }
+    // Get the arguments or set the default values
+    size_t n = (argc > 1) ? atoll(argv[1]) : DEFAULT_N;
 
     // Allocate memory for the vectors
     float *x = (float *)malloc(n * sizeof(float));

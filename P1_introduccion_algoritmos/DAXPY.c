@@ -14,8 +14,8 @@
 #include <time.h>
 #include <sys/time.h>
 
-#define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
 #define DEFAULT_ALPHA 2.0
+#define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
 
 /**
  *
@@ -45,18 +45,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t n = DEFAULT_N;
-    double alpha = DEFAULT_ALPHA;
-
-    // Check if the user has provided the values for alpha
-    if (argc > 1) {
-        alpha = atof(argv[1]);
-    }
-
-    // Check if the user has provided the values for n
-    if (argc > 2) {
-        n = atoll(argv[2]);
-    }
+    // Get the arguments or set the default values
+    double alpha = (argc > 1) ? atof(argv[1]) : DEFAULT_ALPHA;
+    size_t n = (argc > 2) ? atoll(argv[2]) : DEFAULT_N;
 
     // Allocate memory for the vectors
     double *x = (double *)malloc(n * sizeof(double));
