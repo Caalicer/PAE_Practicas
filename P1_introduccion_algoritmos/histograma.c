@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
 
     // Print the results
-    printf("PAE | Time: %f | Result: %d\n", time, hist[0]);
+    printf("PAE | Time: %f | Result: %d \n", time, hist[0]);
 
     return EXIT_SUCCESS;
 
