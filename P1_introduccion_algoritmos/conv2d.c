@@ -1,11 +1,11 @@
 /**
  * @brief Template for Labs
- * 
- * PAE [G4011452] Labs
- * Last update: 
+ *
+ * PAE [G4012452] Labs
+ * Last update: 03/02/2025
  * Issue date:  30/01/2022
- * 
- * Student name: 
+ *
+ * Student name: Jorge Lojo Abal y Pablo Liste Cancela
  *
  */
 
@@ -20,13 +20,13 @@
 
 // General utilities
 
-// Custon utilities (in case of need) 
+// Custon utilities (in case of need)
 
 // Implement the exercise in a function here
 
 /**
  * @brief 2d convolution
- * 
+ *
  * @param image
  * @param image_widht
  * @param img_h
@@ -36,15 +36,18 @@
 int conv2d (float *image, int img_w, int img_h, float* conv);
 
 // Main program
-int main(int argc, char *argv[]) { 
+int main(int argc, char *argv[]) {
+
     // Check for arguments
     if (argc < 2) {
         printf("Use %s image.pgm\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    struct timeval start, start2, end;
-    
+    struct timeval start;
+    struct timeval start2;
+    struct timeval end;
+
     // Image size variables (width and height)
     int img_w;
     int img_h;
@@ -59,10 +62,12 @@ int main(int argc, char *argv[]) {
     }
 
     float *conv = NULL;
+
     if (!(conv = malloc(img_w * (long)img_h * sizeof(float)))) {
         printf("Error allocating convoluted image\n");
         return EXIT_FAILURE;
     }
+
     memset(conv, 0, img_w * (long)img_h);
 
     // Start timer
@@ -75,7 +80,9 @@ int main(int argc, char *argv[]) {
     // Stop timer
     gettimeofday(&end, NULL);
 
-    savePGM32("output.pgm", conv, img_w, img_h);
+    #ifdef DEBUG
+        savePGM32("output.pgm", conv, img_w, img_h);
+    #endif
 
     // Free memory
     free(image);
@@ -90,10 +97,10 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 
-    return 0;
 }
 
-int conv2d (float *image, int img_w, int img_h, float* conv){
+int conv2d (float *image, int img_w, int img_h, float* conv) {
+
     int ker_w = 3, ker_h = 3;
     float ker[] = {0, -1, 0, -1, 5, -1, 0, -1, 0};
 
@@ -109,8 +116,10 @@ int conv2d (float *image, int img_w, int img_h, float* conv){
                                     ker[(k_j+ker_h/2)*ker_w + (k_i+ker_w/2)];
                 }
             }
+
         }
     }
 
     return EXIT_SUCCESS;
+
 }

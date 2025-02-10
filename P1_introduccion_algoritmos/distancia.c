@@ -50,8 +50,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Allocate memory for the vectors
-    float *x = (float *)malloc(n * sizeof(float));
-    float *y = (float *)malloc(n * sizeof(float));
+    double *x = (double *)malloc(n * sizeof(double));
+    double *y = (double *)malloc(n * sizeof(double));
 
     // Check if the memory has been allocated
     if (x == NULL || y == NULL) {
