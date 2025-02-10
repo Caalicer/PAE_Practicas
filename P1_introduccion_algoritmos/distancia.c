@@ -38,15 +38,18 @@ float euclidean_distance(size_t n, float *x, float *y);
  */
 int main(int argc, char *argv[]) {
 
+    // Check if the number of arguments is correct
     if (argc > 2) {
         printf("Usage: %s [n]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
+    // Initialize the size of the vectors
     size_t n = DEFAULT_N;
 
+    // Check if the user has provided the values for n
     if (argc > 1) {
-        n = atoll(argv[1]); // Primer argumento: tamaño del array
+        n = atoll(argv[1]);
     }
 
     // Allocate memory for the vectors
@@ -59,6 +62,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Initialize the timers
     struct timeval start;
     struct timeval start2;
     struct timeval end;
@@ -74,16 +78,17 @@ int main(int argc, char *argv[]) {
 
     }
 
-    // start timer
+    // Start timer
     gettimeofday(&start, NULL);
     gettimeofday(&start2, NULL);
 
-    // call the function
+    // Call the function
     float result = euclidean_distance(n, x, y);
 
-    // stop timer
+    // Stop timer
     gettimeofday(&end, NULL);
 
+    // Free memory
     free(x);
     free(y);
 

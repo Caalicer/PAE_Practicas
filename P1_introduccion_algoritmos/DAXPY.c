@@ -15,7 +15,7 @@
 #include <sys/time.h>
 
 #define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
-#define DEFAULT_ALPHA 2
+#define DEFAULT_ALPHA 2.0
 
 /**
  *
@@ -39,6 +39,7 @@ void daxpy(size_t n, double a, double *x, double *y);
  */
 int main(int argc, char *argv[]) {
 
+    // Check if the number of arguments is correct
     if (argc > 3) {
         printf("Usage: %s [alpha] [n]\n", argv[0]);
         return EXIT_FAILURE;
@@ -47,13 +48,14 @@ int main(int argc, char *argv[]) {
     size_t n = DEFAULT_N;
     double alpha = DEFAULT_ALPHA;
 
-    // Si se pasan argumentos, se usan los valores proporcionados
+    // Check if the user has provided the values for alpha
     if (argc > 1) {
-        alpha = atof(argv[1]); // Primer argumento: valor de α
+        alpha = atof(argv[1]);
     }
 
+    // Check if the user has provided the values for n
     if (argc > 2) {
-        n = atoll(argv[2]); // Segundo argumento: tamaño del array
+        n = atoll(argv[2]);
     }
 
     // Allocate memory for the vectors
@@ -66,6 +68,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Initialize the timers
     struct timeval start;
     struct timeval start2;
     struct timeval end;
@@ -81,16 +84,17 @@ int main(int argc, char *argv[]) {
 
     }
 
-    // start timer
+    // Start timer
     gettimeofday(&start, NULL);
     gettimeofday(&start2, NULL);
 
-    // call the function
+    // Call the function
     daxpy(n, alpha, x, y);
 
-    // stop timer
+    // Stop timer
     gettimeofday(&end, NULL);
 
+    // Free memory
     free(x);
     free(y);
 
@@ -99,7 +103,7 @@ int main(int argc, char *argv[]) {
     double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
 
     // Print the results
-    printf("PAE | Time: %f\n", time);
+    printf("PAE | Time: %f | Result: %f", time, y[0]);
 
     return EXIT_SUCCESS;
 

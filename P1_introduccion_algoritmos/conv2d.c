@@ -33,7 +33,7 @@
  * @param conv
  * @return int Exit status
  */
-int conv2d (float *image, int img_w, int img_h, float* conv);
+int conv2d (float *image, int img_w, int img_h, double* conv);
 
 // Main program
 int main(int argc, char *argv[]) {
@@ -61,9 +61,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    float *conv = NULL;
+    double *conv = NULL;
 
-    if (!(conv = malloc(img_w * (long)img_h * sizeof(float)))) {
+    if (!(conv = malloc(img_w * (long)img_h * sizeof(double)))) {
         printf("Error allocating convoluted image\n");
         return EXIT_FAILURE;
     }
@@ -99,25 +99,40 @@ int main(int argc, char *argv[]) {
 
 }
 
-int conv2d (float *image, int img_w, int img_h, float* conv) {
+int conv2d (float *image, int img_w, int img_h, double* conv) {
 
     int ker_w = 3, ker_h = 3;
     float ker[] = {0, -1, 0, -1, 5, -1, 0, -1, 0};
 
-    // Recorremos la imagen
-    for (int i = ker_w/2; i < img_w - ker_w/2; i++) {
-        for (int j = ker_h/2; j < img_h - ker_h/2; j++) {
+    int pad_w = ker_w / 2;
+    int pad_h = ker_h / 2;
 
-            // Recorremos el kernel
-            for (int k_i = 0 - ker_w/2; k_i <= ker_w/2; k_i++) {
-                for (int k_j = 0 - ker_h/2; k_j <= ker_h/2; k_j++) {
+    // Aplicar convolución con padding de ceros
+    for (int y = 0; y < img_h; y++) {
 
-                    conv[j*img_w + i] += image[(j+k_j)*img_w + (i+k_i)] *      \
-                                    ker[(k_j+ker_h/2)*ker_w + (k_i+ker_w/2)];
+        for (int x = 0; x < img_w; x++) {
+
+            double sum = 0.0;
+
+            for (int ky = 0; ky < ker_h; ky++) {
+
+                for (int kx = 0; kx < ker_w; kx++) {
+
+                    int img_x = x + kx - pad_w;
+                    int img_y = y + ky - pad_h;
+
+                    if (img_x >= 0 && img_x < img_w && img_y >= 0 && img_y < img_h) {
+                        sum += image[img_y * img_w + img_x] * ker[ky * ker_w + kx];
+                    }
+
                 }
+
             }
 
+            conv[y * img_w + x] = sum;
+
         }
+
     }
 
     return EXIT_SUCCESS;

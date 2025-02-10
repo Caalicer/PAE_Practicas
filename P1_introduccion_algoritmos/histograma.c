@@ -29,16 +29,7 @@
  * @param h Image height
  * @param hist Histogram array
  */
-void calculateHistogram(unsigned char* xu8, int w, int h, int* hist) {
-
-    // Calculate histogram
-    for (int i = 0; i < w * h; i++) {
-
-        hist[xu8[i]]++;
-
-    }
-
-}
+void calculateHistogram(unsigned char* xu8, int w, int h, int* hist);
 
 /**
  * @brief Print the histogram of an image
@@ -117,8 +108,19 @@ int main(int argc, char *argv[]) {
     double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
 
     // Print the results
-    printf("PAE | Time: %f\n", time);
+    printf("PAE | Time: %f | Result: %d\n", time, hist[0]);
 
     return EXIT_SUCCESS;
+
+}
+
+void calculateHistogram(unsigned char* xu8, int w, int h, int* hist) {
+
+    // Calculate histogram
+    for (int i = 0; i < w * h; i++) {
+
+        hist[xu8[i]]++;
+
+    }
 
 }
