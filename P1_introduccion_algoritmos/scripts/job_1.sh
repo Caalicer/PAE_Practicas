@@ -37,6 +37,6 @@ done
 avg_exec_time=$(echo "scale=6; $total_exec_time / $max_iter" | bc | awk '{printf "%.6f\n", $0}')
 avg_memory_time=$(echo "scale=6; $total_memory_time / $max_iter" | bc | awk '{printf "%.6f\n", $0}')
 
-echo "PAE | Code: $1 | Total: $max_iter | Avg Time: $avg_exec_time seconds | Avg Memory: $avg_memory_time"
+echo "PAE | Code: $1 | Total exec time: $total_exec_time | Total memory time: $total_memory_time | Avg exec time: $avg_exec_time | Avg memory time: $avg_memory_time"
 
 rm main
