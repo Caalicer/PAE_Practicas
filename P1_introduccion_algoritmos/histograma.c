@@ -64,9 +64,12 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
+    // Initialize the timers
     struct timeval start;
     struct timeval start2;
     struct timeval end;
+    struct timeval memoryStart;
+    struct timeval memoryEnd;
 
     // Image size variables (width and height)
     int w;
@@ -85,7 +88,12 @@ int main(int argc, char *argv[]) {
 
     // Histogram array
     int hist[GRAY_LEVELS];
+
+    gettimeofday(&memoryStart, NULL);
+
     memset(hist, 0, sizeof(int) * GRAY_LEVELS);
+
+    gettimeofday(&memoryEnd, NULL);
 
     // Start timer
     gettimeofday(&start, NULL);
@@ -102,17 +110,17 @@ int main(int argc, char *argv[]) {
         printHistogram(hist);
     #endif
 
-    // Free memory
-    if (xu8) {
-        free(xu8);
-    }
-
     // Calculate the elapsed time
     double overhead = (start2.tv_sec - start.tv_sec) + (start2.tv_usec - start.tv_usec) / 1e6;
     double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
+    double memory_time = (memoryEnd.tv_sec - memoryStart.tv_sec) + (memoryEnd.tv_usec - memoryStart.tv_usec) / 1e6 - overhead;
 
     // Print the results
-    printf("PAE | Time: %f | Result: %d \n", time, hist[0]);
+    // ID, Compute time, Memory time, Result
+    printf("PAE,%f,%f,%d\n", time, memory_time, hist[0]);
+
+    // Free memory
+    free(xu8);
 
     return EXIT_SUCCESS;
 

@@ -14,18 +14,29 @@ module load gcc
 
 gcc -O2 -Wall -lm -o main $1
 
-sum_time=0
+total_exec_time=0
+total_memory_time=0
+
 max_iter=10
 
 for i in $(seq 1 $max_iter)
 do
+
     output=$(./main)
-    time=$(echo "$output" | grep "PAE | Time:" | awk '{print $4}')
-    echo "PAE | Code: $1 | Execution $i: $time seconds"
-    sum_time=$(echo "$sum_time + $time" | bc)
+
+    exec_time=$(echo $output | cut -d',' -f2)
+    memory_time=$(echo $output | cut -d',' -f3)
+
+    echo "PAE | Code: $1 | Execution: $i | Exec time: $exec_time seconds | Memory time: $memory_time seconds"
+
+    total_exec_time=$(echo "scale=6; $total_exec_time + $exec_time" | bc | awk '{printf "%.6f\n", $0}')
+    total_memory_time=$(echo "scale=6; $total_memory_time + $memory_time" | bc | awk '{printf "%.6f\n", $0}')
+
 done
 
-avg_time=$(echo "scale=6; $sum_time / $max_iter" | bc)
-echo "PAE | Code: $1 | Total: $sum_time | Average: $avg_time seconds"
+avg_exec_time=$(echo "scale=6; $total_exec_time / $max_iter" | bc | awk '{printf "%.6f\n", $0}')
+avg_memory_time=$(echo "scale=6; $total_memory_time / $max_iter" | bc | awk '{printf "%.6f\n", $0}')
+
+echo "PAE | Code: $1 | Total: $max_iter | Avg Time: $avg_exec_time seconds | Avg Memory: $avg_memory_time"
 
 rm main

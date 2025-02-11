@@ -49,20 +49,26 @@ int main(int argc, char *argv[]) {
     double alpha = (argc > 1) ? atof(argv[1]) : DEFAULT_ALPHA;
     size_t n = (argc > 2) ? atoll(argv[2]) : DEFAULT_N;
 
+    // Initialize the timers
+    struct timeval start;
+    struct timeval start2;
+    struct timeval end;
+    struct timeval memoryStart;
+    struct timeval memoryEnd;
+
+    gettimeofday(&memoryStart, NULL);
+
     // Allocate memory for the vectors
     double *x = (double *)malloc(n * sizeof(double));
     double *y = (double *)malloc(n * sizeof(double));
+
+    gettimeofday(&memoryEnd, NULL);
 
     // Check if the memory has been allocated
     if (x == NULL || y == NULL) {
         printf("Error: Memory could not be allocated\n");
         return EXIT_FAILURE;
     }
-
-    // Initialize the timers
-    struct timeval start;
-    struct timeval start2;
-    struct timeval end;
 
     // Initialize the seed
     srand(time(NULL));
@@ -88,9 +94,11 @@ int main(int argc, char *argv[]) {
     // Calculate the elapsed time
     double overhead = (start2.tv_sec - start.tv_sec) + (start2.tv_usec - start.tv_usec) / 1e6;
     double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
+    double memory_time = (memoryEnd.tv_sec - memoryStart.tv_sec) + (memoryEnd.tv_usec - memoryStart.tv_usec) / 1e6 - overhead;
 
     // Print the results
-    printf("PAE | Time: %f | Result: %f | Alpha: %f | N: %ld \n", time, y[0], alpha, n);
+    // ID, Compute time, Memory time, X, Y, Alpha, N
+    printf("PAE,%f,%f,%f,%f,%f,%ld\n", time, memory_time, x[0], y[0], alpha, n);
 
     // Free memory
     free(x);

@@ -14,31 +14,45 @@ module load gcc
 
 gcc -O2 -Wall -lm -o main $1
 
-total_time=0
+total_exec_time=0
+total_memory_time=0
+
 max_iter=10
 
 for image in $(ls ./images/*.pgm)
 do
 
-	sum_time=0
+    sum_exec_time=0
+    sum_memory_time=0
 
-	for i in $(seq 1 $max_iter)
-	do
+    for i in $(seq 1 $max_iter)
+    do
 
-		output=$(./main $image)
-		time=$(echo "$output" | grep "PAE | Time:" | awk '{print $4}')
-		echo "PAE | Code: $1 | Image: $image | Execution $i: $time seconds"
-		sum_time=$(echo "$sum_time + $time" | bc)
-		total_time=$(echo "$total_time + $time" | bc)
+        output=$(./main $image | grep "PAE")
 
-	done
+        exec_time=$(echo $output | cut -d',' -f2)
+        memory_time=$(echo $output | cut -d',' -f3)
 
-	avg_time=$(echo "scale=6; $sum_time / $max_iter" | bc)
-	echo "PAE | Code: $1 | Image: $image | Total: $sum_time | Average: $avg_time seconds"
+        echo "PAE | Code: $1 | Image: $image | Execution: $i | Exec time: $exec_time seconds | Memory time: $memory_time seconds"
+
+        sum_exec_time=$(echo "$sum_exec_time + $exec_time" | bc)
+        sum_memory_time=$(echo "$sum_memory_time + $memory_time" | bc)
+
+        total_exec_time=$(echo "$total_exec_time + $exec_time" | bc)
+        total_memory_time=$(echo "$total_memory_time + $memory_time" | bc)
+
+    done
+
+    avg_exec_time=$(echo "scale=6; $sum_exec_time / $max_iter" | bc | awk '{printf "%.6f\n", $0}')
+    avg_memory_time=$(echo "scale=6; $sum_memory_time / $max_iter" | bc | awk '{printf "%.6f\n", $0}')
+
+    echo "PAE | Code: $1 | Image: $image | Total exec time: $sum_exec_time | Total memory time: $sum_memory_time | Avg exec time: $avg_exec_time | Avg memory time: $avg_memory_time"
 
 done
 
-avg_time=$(echo "scale=6; $total_time / ($max_iter * $(ls ./images/*.pgm | wc -l))" | bc)
-echo "PAE | Code: $1 | Total: $total_time | Average: $avg_time seconds"
+avg_exec_time=$(echo "scale=6; $total_exec_time / ($max_iter * $(ls ./images/*.pgm | wc -l))" | bc | awk '{printf "%.6f\n", $0}')
+avg_memory_time=$(echo "scale=6; $total_memory_time / ($max_iter * $(ls ./images/*.pgm | wc -l))" | bc | awk '{printf "%.6f\n", $0}')
+
+echo "PAE | Code: $1 | Total exec time: $total_exec_time | Total memory time: $total_memory_time | Avg exec time: $avg_exec_time | Avg memory time: $avg_memory_time"
 
 rm main
