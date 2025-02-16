@@ -63,16 +63,16 @@ int main(int argc, char *argv[]) {
 
     float *conv = NULL;
 
-    if (!(conv = malloc(img_w * (long)img_h * sizeof(float)))) {
+    gettimeofday(&memoryStart, NULL);
+
+    conv = malloc(img_w * (long)img_h * sizeof(float));
+
+    gettimeofday(&memoryEnd, NULL);
+
+    if (conv == NULL) {
         printf("Error allocating convoluted image\n");
         return EXIT_FAILURE;
     }
-
-    gettimeofday(&memoryStart, NULL);
-
-    memset(conv, 0, img_w * (long)img_h);
-
-    gettimeofday(&memoryEnd, NULL);
 
     gettimeofday(&start, NULL);
     gettimeofday(&start2, NULL);
