@@ -38,16 +38,13 @@ float euclidean_distance(size_t n, float *x, float *y);
  */
 int main(int argc, char *argv[]) {
 
-    // Check if the number of arguments is correct
     if (argc > 2) {
         printf("Usage: %s [n]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    // Get the arguments or set the default values
     size_t n = (argc > 1) ? atoll(argv[1]) : DEFAULT_N;
 
-    // Initialize the timers
     struct timeval start;
     struct timeval start2;
     struct timeval end;
@@ -56,22 +53,18 @@ int main(int argc, char *argv[]) {
 
     gettimeofday(&memoryStart, NULL);
 
-    // Allocate memory for the vectors
     float *x = (float *)malloc(n * sizeof(float));
     float *y = (float *)malloc(n * sizeof(float));
 
     gettimeofday(&memoryEnd, NULL);
 
-    // Check if the memory has been allocated
     if (x == NULL || y == NULL) {
         printf("Error: Memory could not be allocated\n");
         return EXIT_FAILURE;
     }
 
-    // Initialize the seed
     srand(time(NULL));
 
-    // Initialize the vectors
     for (size_t i = 0; i < n; i++) {
 
         x[i] = rand() % 10;
@@ -79,27 +72,26 @@ int main(int argc, char *argv[]) {
 
     }
 
-    // Start timer
     gettimeofday(&start, NULL);
     gettimeofday(&start2, NULL);
 
-    // Call the function
     float result = euclidean_distance(n, x, y);
 
-    // Stop timer
     gettimeofday(&end, NULL);
 
-    // Free memory
     free(x);
     free(y);
 
-    // Calculate the elapsed time
-    double overhead = (start2.tv_sec - start.tv_sec) + (start2.tv_usec - start.tv_usec) / 1e6;
-    double time = (end.tv_sec - start2.tv_sec) + (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
-    double memory_time = (memoryEnd.tv_sec - memoryStart.tv_sec) + (memoryEnd.tv_usec - memoryStart.tv_usec) / 1e6;
+    double overhead    = (start2.tv_sec - start.tv_sec) +                      \
+                         (start2.tv_usec - start.tv_usec) / 1e6;
+    
+    double time        = (end.tv_sec - start2.tv_sec) +                        \
+                         (end.tv_usec - start2.tv_usec) / 1e6 - overhead;
+   
+    double memory_time = (memoryEnd.tv_sec - memoryStart.tv_sec) +             \
+                         (memoryEnd.tv_usec - memoryStart.tv_usec) /           \
+                         1e6 - overhead;
 
-    // Print the results
-    // ID, Compute time, Memory time, Result, N
     printf("PAE,%f,%f,%f,%ld\n", time, memory_time, result, n);
 
     return EXIT_SUCCESS;
@@ -118,5 +110,4 @@ float euclidean_distance(size_t n, float *x, float *y) {
     }
 
     return sqrt(result);
-
 }
