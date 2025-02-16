@@ -28,7 +28,7 @@
  * @param conv
  * @return int Exit status
  */
-int conv2d (float *image, int img_w, int img_h, double* conv);
+int conv2d (float *image, int img_w, int img_h, float* conv);
 
 /**
  * 
@@ -61,9 +61,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    double *conv = NULL;
+    float *conv = NULL;
 
-    if (!(conv = malloc(img_w * (long)img_h * sizeof(double)))) {
+    if (!(conv = malloc(img_w * (long)img_h * sizeof(float)))) {
         printf("Error allocating convoluted image\n");
         return EXIT_FAILURE;
     }
@@ -98,13 +98,13 @@ int main(int argc, char *argv[]) {
                          (memoryEnd.tv_usec - memoryStart.tv_usec) /           \
                          1e6 - overhead;
 
-    printf("PAE | Time: %f\n", time);
+    printf("PAE,%f,%f\n", time, memory_time);
 
     return EXIT_SUCCESS;
 
 }
 
-int conv2d (float *image, int img_w, int img_h, double* conv) {
+int conv2d (float *image, int img_w, int img_h, float* conv) {
 
     int ker_w = 3, ker_h = 3;
     float ker[] = {0, -1, 0, -1, 5, -1, 0, -1, 0};
@@ -116,7 +116,7 @@ int conv2d (float *image, int img_w, int img_h, double* conv) {
 
         for (int x = 0; x < img_w; x++) {
 
-            double sum = 0.0;
+            float sum = 0.0;
 
             for (int ky = 0; ky < ker_h; ky++) {
 
