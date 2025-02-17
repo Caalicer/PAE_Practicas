@@ -1,0 +1,58 @@
+\selectlanguage{spanish}
+
+% ANEXOS
+%\renewcommand{\appendixname}{Anexos}
+%\renewcommand{\appendixtocname}{Anexos}
+%\renewcommand{\appendixpagename}{Anexos}
+
+% BIBLIOGRAFIA
+%\AtBeginDocument{
+%  \renewcommand{\bibsection}{\chapter{\bibname}}
+%} % Bibliografia en capitulo numerado
+
+%\captionsetup{hypcap=true}
+
+% COLORES
+\definecolor{shadecolor}{gray}{0.95}
+
+% Parrafos en el indice
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
+
+
+
+%MÁRGENES
+\setlength{\headheight}{15pt}
+\geometry{top=2.54cm, bottom=4cm, left=2.54cm, right=2.54cm}
+\parindent=12.7mm
+\headsep=15mm
+\footskip=15mm
+
+%ENCABEZADOS Y PIES
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\rightmark}
+\fancyhead[RE,LO]{\titred}
+\fancyfoot[CE,CO]{\leftmark}
+\fancyfoot[LE,RO]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0.pt}
+
+%INFORMACIÓN DOCUMENTO
+\title{\titulo}
+\author{\autores}
+\affil{\asignatura\\ \institucion\\ \carrera}
+\date{\periodo}
+
+% FECHAS
+\DTMnewdatestyle{mesanyo}{%
+  \renewcommand{\DTMdisplaydate}[4]{%
+    \DTMspanishMonthname{##2} ##1%
+  }%
+}
+\DTMsetdatestyle{mesanyo}
+
+\graphicspath{ {imagenes/} }
+
+% CAPITULOS SIN 'CAPITULO'
+\titleformat{\chapter}[hang]{\Huge\bfseries}{\thechapter.}{1em}{\LARGE}

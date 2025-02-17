@@ -1,0 +1,56 @@
+\documentclass[a4paper,12pt,twoside]{report}
+\setlength{\headheight}{15.95134pt}
+\addtolength{\topmargin}{-0.95134pt}
+% VARIABLES
+
+\newcommand{\titulo}{Programación básica y Programación de algoritmos paralelos con CUDA} % Título completo
+\newcommand{\titred}{Porgramación con CUDA} % Título corto
+\newcommand{\periodo}{\today} % Año academico
+\newcommand{\institucion}{Universidad de Santiago de Compostela} % Universidad
+\newcommand{\carrera}{Ingeniería Informática} % Grado
+\newcommand{\asignatura}{Programación de Arquitecturas Emergentes} % Asignatura
+\newcommand{\autor}{Jorge Lojo Abal} % Autor del documento
+%\newcommand{\autorii}{}
+\newcommand{\autores}{Pablo Liste Cancela, \autor} % Autores completos
+
+
+% PAQUETES, ENTORNOS Y ESTILO DEL DOCUMENTO
+\input{0_configuracion/0_paquetes.tex}
+\input{0_configuracion/1_estilo.tex}
+
+% Metadatos
+\hypersetup{ 
+    pdfauthor={\autor} % Autor del trabajo
+    pdftitle={\titulo} % Título del trabajo
+    pdfsubject={} % Memoria del proyecto
+    pdfkeywords{} % Palabras clave del documento
+    pdflang={español} % Idioma del documento
+    pdfcreator={\autor} % Creador del documento
+}
+
+\begin{document}
+
+    % PORTADA
+
+    \maketitle
+
+    % ÍNDICE
+
+    \begingroup
+        \hypersetup{linkcolor=black}
+
+        \tableofcontents
+    \endgroup
+    
+    \newpage
+    
+    % INTRODUCCION
+    \input{1_estructura/1_introduccion.tex}
+    % CONCLUSIONE
+
+    % BIBLIOGRAFIA
+
+
+
+% Fin del documento
+\end{document}
