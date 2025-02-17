@@ -1,39 +1,3 @@
-/*
- * Copyright 1993-2008 NVIDIA Corporation.  All rights reserved.
- *
- * NOTICE TO USER:
- *
- * This source code is subject to NVIDIA ownership rights under U.S. and
- * international Copyright laws.  Users and possessors of this source code
- * are hereby granted a nonexclusive, royalty-free license to use this code
- * in individual and commercial software.
- *
- * NVIDIA MAKES NO REPRESENTATION ABOUT THE SUITABILITY OF THIS SOURCE
- * CODE FOR ANY PURPOSE.  IT IS PROVIDED "AS IS" WITHOUT EXPRESS OR
- * IMPLIED WARRANTY OF ANY KIND.  NVIDIA DISCLAIMS ALL WARRANTIES WITH
- * REGARD TO THIS SOURCE CODE, INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE.
- * IN NO EVENT SHALL NVIDIA BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL,
- * OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
- * OF USE, DATA OR PROFITS,  WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
- * OR OTHER TORTIOUS ACTION,  ARISING OUT OF OR IN CONNECTION WITH THE USE
- * OR PERFORMANCE OF THIS SOURCE CODE.
- *
- * U.S. Government End Users.   This source code is a "commercial item" as
- * that term is defined at  48 C.F.R. 2.101 (OCT 1995), consisting  of
- * "commercial computer  software"  and "commercial computer software
- * documentation" as such terms are  used in 48 C.F.R. 12.212 (SEPT 1995)
- * and is provided to the U.S. Government only as a commercial end item.
- * Consistent with 48 C.F.R.12.212 and 48 C.F.R. 227.7202-1 through
- * 227.7202-4 (JUNE 1995), all U.S. Government End Users acquire the
- * source code with only those rights set forth herein.
- *
- * Any use of this source code in individual and commercial software must
- * include, in the user documentation and internal comments to the code,
- * the above Disclaimer and U.S. Government End Users Notice.
- */
-
-
 // includes, system
 #include <stdio.h>
 #include <assert.h>
@@ -41,56 +5,60 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Program main
 ///////////////////////////////////////////////////////////////////////////////
-int main( int argc, char** argv) 
-{
-    // pointer and dimension for host memory
-    int n, dim;
-    float *h_a, *h_b;
+int main( int argc, char** argv) {
 
-    // pointers for device memory
-    float *d_a, *d_b;
+	// pointer and dimension for host memory
+	int n, dim;
+	float *h_a, *h_b;
 
-    // allocate initialize host memory
-    dim = 262144;
-    h_a = (float *) malloc(dim*sizeof(float));
-    h_b = (float *) malloc(dim*sizeof(float));
-    // initialize input data in host
-    for (n=0; n<dim; n++)
-    {
-        h_a[n] = (float) n;
-    }
+	// pointers for device memory
+	float *d_a, *d_b;
 
-    // allocate device memory
-    size_t memSize;
-    cudaMalloc(  );
-    cudaMalloc(  );
+	// allocate initialize host memory
+	dim = 262144;
 
-    // host to device memory copy d_a = h_a
-    cudaMemcpy(  );
+	size_t mem_size = dim * sizeof(float);
 
-    // device to device memory copy d_b = d_a
-    cudaMemcpy(  );
+	h_a = (float *) malloc(mem_size);
+	h_b = (float *) malloc(mem_size);
 
-    // device to host copy h_b = d_b
-    cudaMemcpy(  );
+	// initialize input data in host
+	for (n=0; n<dim; n++) {
+		h_a[n] = (float) n;
+	}
 
-    // verify the data on the host is correct
-    for (n=0; n<dim; n++)
-    {
-        assert(h_b[n] == h_a[n]);
-    }
+	// allocate device memory
+	cudaMalloc((void **) &d_a, mem_size);
+	cudaMalloc((void **) &d_b, mem_size);
 
-    // free device memory pointers d_a and d_b
+	// host to device memory copy d_a = h_a
+	cudaMemcpy(d_a, h_a, mem_size, cudaMemcpyHostToDevice);
 
-    // free host memory pointers
-    free(h_a);
-    free(h_b);
+	// device to device memory copy d_b = d_a
+	cudaMemcpy(d_b, d_a, mem_size, cudaMemcpyDeviceToDevice);
 
-    // If the program makes it this far, then the results are correct and
-    // there are no run-time errors.  Good work!
-    printf("Correct!\n");
+	// device to host copy h_b = d_b
+	cudaMemcpy(h_b, d_b, mem_size, cudaMemcpyDeviceToHost);
 
-    return 0;
+	// verify the data on the host is correct
+	for (n=0; n<dim; n++) {
+		assert(h_b[n] == h_a[n]);
+	}
+
+	// free device memory pointers d_a and d_b
+	cudaFree(d_a);
+	cudaFree(d_b);
+
+	// free host memory pointers
+	free(h_a);
+	free(h_b);
+
+	// If the program makes it this far, then the results are correct and
+	// there are no run-time errors.  Good work!
+	printf("Correct!\n");
+
+	return 0;
+
 }
 
 // nvcc 01_cudaMemcpy.cu - 01_cudaMemcpy
