@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <cuda_runtime.h>
 
+#define SIZE 8192
+#define BYTES SIZE * sizeof(int)
+
+#define BLOCK_SIZE 256
+#define GRID_SIZE (SIZE + BLOCK_SIZE - 1) / BLOCK_SIZE
+
 // Error checking function
 void checkCUDAError(const char* msg) {
 
@@ -61,9 +67,6 @@ bool verifyResult(int* y, int size) {
 
 int main() {
 
-	const int SIZE = 8192;
-	const int BYTES = SIZE * sizeof(int);
-
 	// Allocate host memory
 	int* h_y = (int*)malloc(BYTES);
 
@@ -75,12 +78,8 @@ int main() {
 
 	checkCUDAError("cudaMalloc failed");
 
-	// Calculate grid and block sizes
-	int blockSize = 256;
-	int gridSize = (SIZE + blockSize - 1) / blockSize;
-
 	// Initialize array on GPU
-	initArray<<<gridSize, blockSize>>>(d_x, SIZE);
+	initArray<<<GRID_SIZE, BLOCK_SIZE>>>(d_x, SIZE);
 	cudaDeviceSynchronize();
 
 	checkCUDAError("Kernel initialization failed");
@@ -96,7 +95,7 @@ int main() {
 	cudaEventRecord(start);
 
 	// Invert array
-	invertArray<<<gridSize, blockSize>>>(d_x, d_y, SIZE);
+	invertArray<<<GRID_SIZE, BLOCK_SIZE>>>(d_x, d_y, SIZE);
 	cudaDeviceSynchronize();
 
 	// Record stop time
