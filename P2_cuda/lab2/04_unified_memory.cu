@@ -1,10 +1,24 @@
 // includes, system
 #include <stdio.h>
 #include <assert.h>
+#include <cuda_runtime.h>
 
 ///////////////////////////////////////////////////////////////////////////////
 // Program main
 ///////////////////////////////////////////////////////////////////////////////
+
+__global__ void doSomething(float *d_a, int n) {
+
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+
+	if (i < n) {
+
+		d_a[i] = d_a[i] * d_a[i];
+
+	}
+
+}
+
 int main(int argc, char **argv) {
 
 	// pointer and dimension for host memory
@@ -31,12 +45,14 @@ int main(int argc, char **argv) {
 		d_a[n] = h_a[n];
 	}
 
+	doSomething<<<ceil(dim / 256.0), 256>>>(d_a, dim);
+
 	// device to host copy h_b = d_a
 	cudaMemcpy(h_b, d_a, size, cudaMemcpyDeviceToHost);
 
 	// verify the data on the host is correct
 	for (n = 0; n < dim; n++) {
-		assert(h_b[n] == h_a[n]);
+		assert(h_b[n] == h_a[n] * h_a[n]);
 	}
 
 	// free all memory

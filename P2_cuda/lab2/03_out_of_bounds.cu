@@ -10,8 +10,15 @@ void checkCUDAError(const char *msg);
 
 // Each thread initialize one element
 __global__ void initializeKernel(float *A, int n) {
+
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
-	A[i] = (float)i;
+
+	if (i < n) {
+
+		A[i] = (float)i;
+
+	}
+
 }
 
 ///////////////////////////////////////////////////////////////////////////////
