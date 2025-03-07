@@ -9,7 +9,7 @@
 #SBATCH -o ./outs/P2_1.o
 #SBATCH -e ./outs/P2_1.e
 
-# Valid for exercises [7, 7]
+# Valid for exercises [7]
 gcc -fopenacc -o main $1
 
 ./main

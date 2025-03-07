@@ -9,9 +9,9 @@
 #SBATCH -o ./outs/P2_1.o
 #SBATCH -e ./outs/P2_1.e
 
-# Lista de combinaciones de tamaños de bloque (x, y)
-
 # Valid for exercises [daxpy]
+
+nvcc -O2 -o main $1
 
 block_sizes=(
 	"128 8"
@@ -20,8 +20,6 @@ block_sizes=(
 	"16 64"
 	"8 128"
 )
-
-nvcc -o main $1
 
 max_iter=10
 

@@ -10,7 +10,7 @@
 #SBATCH -e ./outs/P2_1.e
 
 # Valid for exercises [0, 6]
-nvcc -o main $1
+nvcc -O2 -o main $1
 
 ./main
 
