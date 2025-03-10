@@ -6,7 +6,6 @@
 
 #define DEFAULT_ALPHA 2.0
 #define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
-#define MAX_BLOCKS_PER_SM 16
 
 __global__ void init(double* x, double* y, size_t N) {
 
@@ -23,11 +22,12 @@ __global__ void init(double* x, double* y, size_t N) {
 
 __global__ void daxpy(double* x, double* y, double a, size_t N) {
 
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = gridDim.x * blockDim.x;
 
-	if (idx < N) {
+	for (; i < N; i += stride) {
 
-		y[idx] = a * x[idx] + y[idx];
+		y[i] = a * x[i] + y[i];
 
 	}
 
@@ -35,18 +35,19 @@ __global__ void daxpy(double* x, double* y, double a, size_t N) {
 
 int main(int argc, char** argv) {
 
-	if (argc < 3) {
+	if (argc < 2) {
 
-		fprintf(stderr, "Usage: %s <blockSizeX> <blockSizeY> [alpha] [n]\n", argv[0]);
+		fprintf(stderr, "Usage: %s <threadsPerBlock> [alpha] [n]\n", argv[0]);
 		return EXIT_FAILURE;
 
 	}
 
-	int blockSizeX = atoi(argv[1]);
-	int blockSizeY = atoi(argv[2]);
+	int threadsPerBlock = atoi(argv[1]);
 
-	double alpha = (argc > 3) ? atof(argv[3]) : DEFAULT_ALPHA;
-	size_t n = (argc > 4) ? atoll(argv[4]) : DEFAULT_N;
+	double alpha = (argc > 2) ? atof(argv[2]) : DEFAULT_ALPHA;
+	size_t n = (argc > 3) ? atoll(argv[3]) : DEFAULT_N;
+
+	int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
 
 	double* x;
 	double* y;
@@ -67,20 +68,15 @@ int main(int argc, char** argv) {
 
 	gettimeofday(&endAlloc, NULL);
 
-	dim3 blockSize(blockSizeX, blockSizeY);
-	dim3 grid((n + blockSize.x - 1) / blockSize.x, 1);
-
 	gettimeofday(&startInit, NULL);
 
-	init<<<grid, blockSize>>>(x, y, n);
-	cudaDeviceSynchronize();
+	init<<<blocksPerGrid, threadsPerBlock>>>(x, y, n);
 
 	gettimeofday(&endInit, NULL);
 
 	gettimeofday(&startDaxpy, NULL);
 
-	daxpy<<<grid, blockSize>>>(x, y, alpha, n);
-	cudaDeviceSynchronize();
+	daxpy<<<blocksPerGrid, threadsPerBlock>>>(x, y, alpha, n);
 
 	gettimeofday(&endDaxpy, NULL);
 
@@ -89,18 +85,19 @@ int main(int argc, char** argv) {
 	cudaOccupancyMaxActiveBlocksPerMultiprocessor(
 		&maxBlocksPerSM,
 		init,
-		blockSize.x * blockSize.y,
+		threadsPerBlock,
 		0
 	);
 
-	float occupancy = (float)(maxBlocksPerSM * blockSize.x * blockSize.y) / prop.maxThreadsPerMultiProcessor;
+	float occupancy = (float)(maxBlocksPerSM * threadsPerBlock) / prop.maxThreadsPerMultiProcessor;
 
 	double overhead = (startAlloc2.tv_sec - startAlloc.tv_sec) + (startAlloc2.tv_usec - startAlloc.tv_usec) / 1e6;
 	double alloc_time = (endAlloc.tv_sec - startAlloc2.tv_sec) + (endAlloc.tv_usec - startAlloc2.tv_usec) / 1e6 - overhead;
-	double init_time = (endInit.tv_sec - startInit.tv_sec) + (endInit.tv_usec - startInit.tv_usec) / 1e6;
-	double daxpy_time = (endDaxpy.tv_sec - startDaxpy.tv_sec) + (endDaxpy.tv_usec - startDaxpy.tv_usec) / 1e6;
+	double init_time = (endInit.tv_sec - startInit.tv_sec) + (endInit.tv_usec - startInit.tv_usec) / 1e6  - overhead;
+	double daxpy_time = (endDaxpy.tv_sec - startDaxpy.tv_sec) + (endDaxpy.tv_usec - startDaxpy.tv_usec) / 1e6 - overhead;
+	double total_time = alloc_time + init_time + daxpy_time;
 
-	printf("PAE,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%ld,%f\n", blockSize.x, blockSize.y, grid.x, grid.y, blockSize.x * blockSize.y, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, n, alpha);
+	printf("PAE,%d,%d,%d,%f,%f,%f,%f,%f,%f,%ld,%f\n", threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, total_time, n, alpha);
 
 	cudaFree(x);
 	cudaFree(y);
