@@ -73,6 +73,8 @@ int main(int argc, char** argv) {
 	struct timeval startAlloc, startAlloc2, endAlloc;
 	struct timeval startInit, endInit;
 	struct timeval startHistogram, endHistogram;
+	struct timeval startHD, endHD;
+	struct timeval startDH, endDH;
 
 	int w;
 	int h;
@@ -104,10 +106,14 @@ int main(int argc, char** argv) {
 
 	gettimeofday(&endAlloc, NULL);
 
-	gettimeofday(&startInit, NULL);
+	gettimeofday(&startHD, NULL);
 
 	cudaMemcpy(d_image, h_image, imageSize * sizeof(unsigned char), cudaMemcpyHostToDevice);
 	checkCUDAError("Copying image data to device");
+
+	gettimeofday(&endHD, NULL);
+
+	gettimeofday(&startInit, NULL);
 
 	cudaMemset(d_hist, 0, GRAY_LEVELS * sizeof(int));
 	checkCUDAError("Initializing histogram array");
@@ -129,8 +135,12 @@ int main(int argc, char** argv) {
 
 	gettimeofday(&endHistogram, NULL);
 
+	gettimeofday(&startDH, NULL);
+
 	cudaMemcpy(h_hist, d_hist, GRAY_LEVELS * sizeof(int), cudaMemcpyDeviceToHost);
 	checkCUDAError("Copying histogram results to host");
+
+	gettimeofday(&endDH, NULL);
 
 	int maxBlocksPerSM;
 	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, histogram, threadsPerBlock, 0);
@@ -142,6 +152,8 @@ int main(int argc, char** argv) {
 	double alloc_time = (endAlloc.tv_sec - startAlloc2.tv_sec) + (endAlloc.tv_usec - startAlloc2.tv_usec) / 1e6 - overhead;
 	double init_time = (endInit.tv_sec - startInit.tv_sec) + (endInit.tv_usec - startInit.tv_usec) / 1e6 - overhead;
 	double histogram_time = (endHistogram.tv_sec - startHistogram.tv_sec) + (endHistogram.tv_usec - startHistogram.tv_usec) / 1e6 - overhead;
+	double hd_time = (endHD.tv_sec - startHD.tv_sec) + (endHD.tv_usec - startHD.tv_usec) / 1e6 - overhead;
+	double dh_time = (endDH.tv_sec - startDH.tv_sec) + (endDH.tv_usec - startDH.tv_usec) / 1e6 - overhead;
 	double total_time = alloc_time + init_time + histogram_time;
 
 	#ifdef DEBUG
@@ -168,7 +180,7 @@ int main(int argc, char** argv) {
 
 	}
 
-	printf("\nPAE,%s,%d,%d,%d,%f,%f,%f,%f,%f,%f,%ld\n",imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, total_time, imageSize);
+	printf("\nPAE,%s,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
 
 	printf("First histogram value: %d\n", h_hist[0]);
 	printf("Total histogram sum: %d\n", sum);
@@ -182,4 +194,5 @@ int main(int argc, char** argv) {
 	free(h_image);
 
 	return EXIT_SUCCESS;
+	
 }

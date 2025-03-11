@@ -1,4 +1,5 @@
 *.env
-*/images/*
+*/lab*/images/*
+*/lab*/outs/*
 .ltxaux/
 *.synctex.gz

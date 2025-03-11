@@ -82,12 +82,7 @@ int main(int argc, char** argv) {
 
 	int maxBlocksPerSM;
 
-	cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-		&maxBlocksPerSM,
-		init,
-		threadsPerBlock,
-		0
-	);
+	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, init, threadsPerBlock, 0);
 
 	float occupancy = (float)(maxBlocksPerSM * threadsPerBlock) / prop.maxThreadsPerMultiProcessor;
 
@@ -97,7 +92,7 @@ int main(int argc, char** argv) {
 	double daxpy_time = (endDaxpy.tv_sec - startDaxpy.tv_sec) + (endDaxpy.tv_usec - startDaxpy.tv_usec) / 1e6 - overhead;
 	double total_time = alloc_time + init_time + daxpy_time;
 
-	printf("PAE,%d,%d,%d,%f,%f,%f,%f,%f,%f,%ld,%f\n", threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, total_time, n, alpha);
+	printf("PAE,%d,%d,%d,%f,%f,%f,%f,%f,%f,%ld,%f,PAE\n", threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, total_time, n, alpha);
 
 	cudaFree(x);
 	cudaFree(y);
