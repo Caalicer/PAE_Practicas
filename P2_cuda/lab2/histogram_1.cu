@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
 	int sum = 0;
 
 	for (int i = 0; i < GRAY_LEVELS; i++) {
-		
+
 		sum += h_hist[i];
 
 	}
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
 
 	}
 
-	printf("\nPAE,%s,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
+	printf("\nPAE,%s,%d,%d,%d,%f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
 
 	printf("First histogram value: %d\n", h_hist[0]);
 	printf("Total histogram sum: %d\n", sum);
