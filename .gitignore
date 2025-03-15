@@ -3,3 +3,4 @@
 */lab*/outs/*
 .ltxaux/
 *.synctex.gz
+*venv
