@@ -8,6 +8,14 @@
 
 #define GRAY_LEVELS 256
 
+double get_time() {
+
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec + ts.tv_nsec / 1.0e9;
+
+}
+
 void checkCUDAError(const char *msg) {
 
 	cudaError_t err = cudaGetLastError();
@@ -16,6 +24,16 @@ void checkCUDAError(const char *msg) {
 
 		fprintf(stderr, "Cuda error: %s: %s in %s at line %d.\n", msg, cudaGetErrorString(err), __FILE__, __LINE__);
 		exit(EXIT_FAILURE);
+
+	}
+
+}
+
+void cpu_histogram(unsigned char* input, int* histogram, size_t imageSize) {
+
+	for (size_t i = 0; i < imageSize; i++) {
+
+		histogram[input[i]]++;
 
 	}
 
@@ -70,11 +88,12 @@ int main(int argc, char** argv) {
 	const char* imagePath = argv[1];
 	int threadsPerBlock = atoi(argv[2]);
 
-	struct timeval startAlloc, startAlloc2, endAlloc;
-	struct timeval startInit, endInit;
-	struct timeval startHistogram, endHistogram;
-	struct timeval startHD, endHD;
-	struct timeval startDH, endDH;
+	double startAlloc, startAlloc2, endAlloc;
+	double startInit, endInit;
+	double startHistogram, endHistogram;
+	double startHD, endHD;
+	double startDH, endDH;
+	double overhead;
 
 	int w;
 	int h;
@@ -95,30 +114,31 @@ int main(int argc, char** argv) {
 	cudaGetDeviceProperties(&prop, 0);
 	checkCUDAError("Getting device properties");
 
-	gettimeofday(&startAlloc, NULL);
-	gettimeofday(&startAlloc2, NULL);
+	startAlloc = get_time();
+	startAlloc2 = get_time();
 
 	cudaMalloc(&d_image, imageSize * sizeof(unsigned char));
-	checkCUDAError("Allocating device memory for image");
-
 	cudaMalloc(&d_hist, GRAY_LEVELS * sizeof(int));
-	checkCUDAError("Allocating device memory for histogram");
 
-	gettimeofday(&endAlloc, NULL);
+	checkCUDAError("Allocating device memory for image and histogram");
 
-	gettimeofday(&startHD, NULL);
+	endAlloc = get_time();
+
+	startHD = get_time();
 
 	cudaMemcpy(d_image, h_image, imageSize * sizeof(unsigned char), cudaMemcpyHostToDevice);
+
+	endHD = get_time();
+
 	checkCUDAError("Copying image data to device");
 
-	gettimeofday(&endHD, NULL);
-
-	gettimeofday(&startInit, NULL);
+	startInit = get_time();
 
 	cudaMemset(d_hist, 0, GRAY_LEVELS * sizeof(int));
-	checkCUDAError("Initializing histogram array");
 
-	gettimeofday(&endInit, NULL);
+	endInit = get_time();
+
+	checkCUDAError("Initializing histogram array");
 
 	int blocksPerGrid = (imageSize + threadsPerBlock - 1) / threadsPerBlock;
 
@@ -128,19 +148,23 @@ int main(int argc, char** argv) {
 
 	}
 
-	gettimeofday(&startHistogram, NULL);
+	startHistogram = get_time();
 
 	histogram<<<blocksPerGrid, threadsPerBlock>>>(d_image, d_hist, imageSize);
+
+	cudaDeviceSynchronize();
+
+	endHistogram = get_time();
+
 	checkCUDAError("Executing shared memory histogram kernel");
 
-	gettimeofday(&endHistogram, NULL);
-
-	gettimeofday(&startDH, NULL);
+	startDH = get_time();
 
 	cudaMemcpy(h_hist, d_hist, GRAY_LEVELS * sizeof(int), cudaMemcpyDeviceToHost);
-	checkCUDAError("Copying histogram results to host");
 
-	gettimeofday(&endDH, NULL);
+	endDH = get_time();
+
+	checkCUDAError("Copying histogram results to host");
 
 	int maxBlocksPerSM;
 	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, histogram, threadsPerBlock, 0);
@@ -148,42 +172,41 @@ int main(int argc, char** argv) {
 
 	float occupancy = (float)(maxBlocksPerSM * threadsPerBlock) / prop.maxThreadsPerMultiProcessor;
 
-	double overhead = (startAlloc2.tv_sec - startAlloc.tv_sec) + (startAlloc2.tv_usec - startAlloc.tv_usec) / 1e6;
-	double alloc_time = (endAlloc.tv_sec - startAlloc2.tv_sec) + (endAlloc.tv_usec - startAlloc2.tv_usec) / 1e6 - overhead;
-	double init_time = (endInit.tv_sec - startInit.tv_sec) + (endInit.tv_usec - startInit.tv_usec) / 1e6 - overhead;
-	double histogram_time = (endHistogram.tv_sec - startHistogram.tv_sec) + (endHistogram.tv_usec - startHistogram.tv_usec) / 1e6 - overhead;
-	double hd_time = (endHD.tv_sec - startHD.tv_sec) + (endHD.tv_usec - startHD.tv_usec) / 1e6 - overhead;
-	double dh_time = (endDH.tv_sec - startDH.tv_sec) + (endDH.tv_usec - startDH.tv_usec) / 1e6 - overhead;
-	double total_time = alloc_time + init_time + histogram_time;
+	overhead = startAlloc2 - startAlloc;
+	double alloc_time = endAlloc - startAlloc2 - overhead;
+	double init_time = endInit - startInit - overhead;
+	double histogram_time = endHistogram - startHistogram - overhead;
+	double hd_time = endHD - startHD - overhead;
+	double dh_time = endDH - startDH - overhead;
+	double total_time = alloc_time + init_time + histogram_time + hd_time + dh_time;
 
-	#ifdef DEBUG
+	printf("\nPAE,%s,%d,%d,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
 
-		for (int i = 0; i < GRAY_LEVELS; i++) {
+	int h_hist_cpu[GRAY_LEVELS] = {0};
 
-			printf("%d, %d\n", i, h_hist[i]);
+	cpu_histogram(h_image, h_hist_cpu, imageSize);
 
-		}
-
-	#endif
-
-	int sum = 0;
+	int errors = 0;
 
 	for (int i = 0; i < GRAY_LEVELS; i++) {
 
-		sum += h_hist[i];
+		if (h_hist[i] != h_hist_cpu[i]) {
+
+			errors++;
+
+		}
 
 	}
 
-	if (sum != imageSize) {
+	if (errors == 0) {
 
-		printf("Warning: Histogram sum (%d) does not match image size (%ld)\n", sum, imageSize);
+		printf("Verification PASSED! CPU and GPU results match.\n");
+
+	} else {
+
+		printf("Verification FAILED! CPU and GPU results do not match.\n");
 
 	}
-
-	printf("\nPAE,%s,%d,%d,%d,%f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
-
-	printf("First histogram value: %d\n", h_hist[0]);
-	printf("Total histogram sum: %d\n", sum);
 
 	cudaFree(d_image);
 	checkCUDAError("Freeing device memory for image");

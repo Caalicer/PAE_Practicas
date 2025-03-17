@@ -16,7 +16,7 @@ nvcc -O2 -o main_1 $1
 block_sizes=(1 2 4 8 16 32 64 128 256 512 1024)
 
 max_iter=10
-n_values=($(seq 0 5 35))
+n_values=($(seq 1 6 36))
 
 max_iter=10
 
