@@ -2,7 +2,7 @@
 
 #SBATCH -N 1
 #SBATCH -c 32
-#SBATCH --mem 64G
+#SBATCH --mem 128G
 #SBATCH --gres gpu:a100:1
 #SBATCH -t 02:00:00
 #SBATCH -J P2_1
@@ -13,10 +13,10 @@
 
 nvcc -O2 -o main_1 $1
 
-block_sizes=(1 2 4 8 16 32 64 128 256 512 1024)
+block_sizes=(8 16 32 64 128 256 512 1024)
 
 max_iter=10
-n_values=($(seq 1 6 36))
+n_values=(1 $(seq 2 2 16))
 
 max_iter=10
 

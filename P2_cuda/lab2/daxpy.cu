@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <cuda_runtime.h>
 #include <time.h>
 #include <sys/time.h>
@@ -21,7 +22,7 @@ void checkCUDAError(const char *msg) {
 
 	if (cudaSuccess != err) {
 
-		fprintf(stderr, "Cuda error: %s: %s in %s at line %d.\n", msg, cudaGetErrorString(err), __FILE__, __LINE__);
+		printf("Cuda error: %s: %s in %s at line %d.\n", msg, cudaGetErrorString(err), __FILE__, __LINE__);
 		exit(EXIT_FAILURE);
 
 	}
@@ -68,7 +69,7 @@ int main(int argc, char** argv) {
 
 	if (argc < 2) {
 
-		fprintf(stderr, "Usage: %s <threadsPerBlock> [alpha] [n]\n", argv[0]);
+		printf("Usage: %s <threadsPerBlock> [alpha] [n]\n", argv[0]);
 		return EXIT_FAILURE;
 
 	}
@@ -79,7 +80,7 @@ int main(int argc, char** argv) {
 
 	size_t n = (argc > 3) ? atoll(argv[3]) : DEFAULT_N;
 
-	int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
+	long blocksPerGrid = ceil(n / threadsPerBlock);
 
 	double* x;
 	double* y;
@@ -108,14 +109,16 @@ int main(int argc, char** argv) {
 	cpu_x = (double*)malloc(n * sizeof(double));
 	cpu_y = (double*)malloc(n * sizeof(double));
 
+	end_alloc = get_time();
+
+	checkCUDAError("GPU Alloc");
+
 	if (cpu_x == NULL || cpu_y == NULL) {
 
-		fprintf(stderr, "Failed to allocate host memory\n");
+		printf("Failed to allocate host memory\n");
 		return EXIT_FAILURE;
 
 	}
-
-	end_alloc = get_time();
 
 	start_init = get_time();
 
@@ -159,9 +162,10 @@ int main(int argc, char** argv) {
 
 		double diff = fabs(y[i] - cpu_y[i]);
 
-		if (diff > 1e-10) {
+		if (diff > 1e-5) {
 
-			errors++;
+			errors = 1;
+			break;
 
 		}
 
@@ -169,7 +173,7 @@ int main(int argc, char** argv) {
 
 	int maxBlocksPerSM;
 
-	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, init, threadsPerBlock, 0);
+	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, daxpy, threadsPerBlock, 0);
 
 	float occupancy = (float)(maxBlocksPerSM * threadsPerBlock) / prop.maxThreadsPerMultiProcessor;
 
@@ -180,7 +184,7 @@ int main(int argc, char** argv) {
 	double dh_time = end_dh - start_dh - overhead;
 	double total_time = alloc_time + init_time + daxpy_time + dh_time;
 
-	printf("PAE,%d,%d,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,%f,PAE\n", threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, dh_time, total_time, n, alpha);
+	printf("PAE,%d,%ld,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,%f,PAE\n", threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, dh_time, total_time, n, alpha);
 
 	if (errors == 0) {
 
@@ -188,7 +192,7 @@ int main(int argc, char** argv) {
 
 	} else {
 
-		printf("Verification FAILED! %d errors found.\n", errors);
+		printf("Verification FAILED! CPU and GPU results do not match.\n");
 
 	}
 

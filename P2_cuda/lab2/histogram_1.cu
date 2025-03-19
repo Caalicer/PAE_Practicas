@@ -22,7 +22,7 @@ void checkCUDAError(const char *msg) {
 
 	if (cudaSuccess != err) {
 
-		fprintf(stderr, "Cuda error: %s: %s in %s at line %d.\n", msg, cudaGetErrorString(err), __FILE__, __LINE__);
+		printf("Cuda error: %s: %s in %s at line %d.\n", msg, cudaGetErrorString(err), __FILE__, __LINE__);
 		exit(EXIT_FAILURE);
 
 	}
@@ -37,7 +37,9 @@ __global__ void histogram(unsigned char* input, int* histogram, size_t imageSize
 	int stride = blockDim.x * gridDim.x;
 
 	for (int i = tid; i < imageSize; i += stride) {
+
 		localHistogram[input[i]]++;
+
 	}
 
 	for (int binIdx = 0; binIdx < GRAY_LEVELS; binIdx++) {
@@ -66,7 +68,7 @@ int main(int argc, char** argv) {
 
 	if (argc < 3) {
 
-		fprintf(stderr, "Usage: %s <image.pgm> <threadsPerBlock>\n", argv[0]);
+		printf("Usage: %s <image.pgm> <threadsPerBlock>\n", argv[0]);
 		return EXIT_FAILURE;
 
 	}
@@ -128,7 +130,7 @@ int main(int argc, char** argv) {
 
 	checkCUDAError("Initializing histogram array");
 
-	int blocksPerGrid = (imageSize + threadsPerBlock - 1) / threadsPerBlock;
+	long blocksPerGrid = ceil(imageSize / threadsPerBlock);
 
 	startHistogram = get_time();
 
@@ -162,7 +164,7 @@ int main(int argc, char** argv) {
 	double dh_time = endDH - startDH - overhead;
 	double total_time = alloc_time + init_time + histogram_time + hd_time + dh_time;
 
-	printf("\nPAE,%s,%d,%d,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
+	printf("\nPAE,%s,%d,%ld,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,PAE\n", imagePath, threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, histogram_time, hd_time, dh_time, total_time, imageSize);
 
 	int h_hist_cpu[GRAY_LEVELS] = {0};
 
@@ -174,7 +176,8 @@ int main(int argc, char** argv) {
 
 		if (h_hist[i] != h_hist_cpu[i]) {
 
-			errors++;
+			errors = 1;
+			break;
 
 		}
 
