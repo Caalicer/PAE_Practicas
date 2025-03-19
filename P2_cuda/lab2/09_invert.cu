@@ -1,11 +1,13 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <cuda_runtime.h>
+#include <math.h>
 
 #define SIZE 8192
 #define BYTES SIZE * sizeof(int)
 
 #define BLOCK_SIZE 256
-#define GRID_SIZE (SIZE + BLOCK_SIZE - 1) / BLOCK_SIZE
+#define GRID_SIZE ceil(SIZE / BLOCK_SIZE)
 
 // Error checking function
 void checkCUDAError(const char* msg) {

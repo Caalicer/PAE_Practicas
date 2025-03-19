@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <cuda_runtime.h>
 #include <math.h>
 
@@ -45,6 +46,8 @@ int main() {
 	printf("Max threads per block: %d\n", prop.maxThreadsPerBlock);
 	printf("Max threads per SM: %d\n", prop.maxThreadsPerMultiProcessor);
 	printf("Number of SMs: %d\n\n", prop.multiProcessorCount);
+	printf("Warp size: %d\n", prop.warpSize);
+	printf("Max warps per SM: %d\n", prop.maxThreadsPerMultiProcessor / prop.warpSize);
 
 	// Calculate matrix dimensions for 1 GiB matrix
 	// 1 GiB = 2^30 bytes
@@ -80,8 +83,8 @@ int main() {
 
 		// Calculate grid dimensions
 		dim3 gridSize(
-			(N + blockSize.x - 1) / blockSize.x,
-			(M + blockSize.y - 1) / blockSize.y
+			ceil(N / blockSize.x),
+			ceil(M / blockSize.y)
 		);
 
 		printf("\nTesting block size: %d x %d (Total threads per block: %d)\n", blockSize.x, blockSize.y, blockSize.x * blockSize.y);
@@ -120,7 +123,7 @@ int main() {
 			&maxBlocksPerSM,
 			initMatrix,
 			blockSize.x * blockSize.y,
-			0	// dynamic shared memory size
+			0
 		);
 
 		float occupancy = (float)(maxBlocksPerSM * blockSize.x * blockSize.y) / prop.maxThreadsPerMultiProcessor;
