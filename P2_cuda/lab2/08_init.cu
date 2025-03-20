@@ -45,9 +45,9 @@ int main() {
 	printf("Compute Capability: %d.%d\n", prop.major, prop.minor);
 	printf("Max threads per block: %d\n", prop.maxThreadsPerBlock);
 	printf("Max threads per SM: %d\n", prop.maxThreadsPerMultiProcessor);
-	printf("Number of SMs: %d\n\n", prop.multiProcessorCount);
+	printf("Number of SMs: %d\n", prop.multiProcessorCount);
 	printf("Warp size: %d\n", prop.warpSize);
-	printf("Max warps per SM: %d\n", prop.maxThreadsPerMultiProcessor / prop.warpSize);
+	printf("Max warps per SM: %d\n\n", prop.maxThreadsPerMultiProcessor / prop.warpSize);
 
 	// Calculate matrix dimensions for 1 GiB matrix
 	// 1 GiB = 2^30 bytes
