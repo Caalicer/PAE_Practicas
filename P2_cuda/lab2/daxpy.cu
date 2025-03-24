@@ -1,210 +1,198 @@
+#include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cuda_runtime.h>
-#include <time.h>
 #include <sys/time.h>
-#include <stdlib.h>
+#include <time.h>
 
 #define DEFAULT_ALPHA 2.0
 #define DEFAULT_N ((6L * 1024 * 1024 * 1024) / sizeof(double))
 
 double get_time() {
 
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec + ts.tv_nsec / 1.0e9;
-
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1.0e9;
 }
 
-void checkCUDAError(const char *msg) {
+void checkCUDAError(const char* msg) {
 
-	cudaError_t err = cudaGetLastError();
+    cudaError_t err = cudaGetLastError();
 
-	if (cudaSuccess != err) {
+    if (cudaSuccess != err) {
 
-		printf("Cuda error: %s: %s in %s at line %d.\n", msg, cudaGetErrorString(err), __FILE__, __LINE__);
-		exit(EXIT_FAILURE);
-
-	}
-
+        printf("Cuda error: %s: %s in %s at line %d.\n", msg,
+               cudaGetErrorString(err), __FILE__, __LINE__);
+        exit(EXIT_FAILURE);
+    }
 }
 
 __global__ void init(double* x, double* y, size_t N) {
 
-	size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx < N) {
+    if (idx < N) {
 
-		x[idx] = idx;
-		y[idx] = idx;
-
-	}
-
+        x[idx] = idx;
+        y[idx] = idx;
+    }
 }
 
 __global__ void daxpy(double* x, double* y, double a, size_t N) {
 
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = gridDim.x * blockDim.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = gridDim.x * blockDim.x;
 
-	for (; i < N; i += stride) {
+    for (; i < N; i += stride) {
 
-		y[i] = a * x[i] + y[i];
-
-	}
-
+        y[i] = a * x[i] + y[i];
+    }
 }
 
 void cpu_daxpy(double* x, double* y, double a, size_t N) {
 
-	for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
 
-		y[i] = a * x[i] + y[i];
-
-	}
-
+        y[i] = a * x[i] + y[i];
+    }
 }
 
 int main(int argc, char** argv) {
 
-	if (argc < 2) {
+    if (argc < 2) {
 
-		printf("Usage: %s <threadsPerBlock> [alpha] [n]\n", argv[0]);
-		return EXIT_FAILURE;
+        printf("Usage: %s <threadsPerBlock> [alpha] [n]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
 
-	}
+    int threadsPerBlock = atoi(argv[1]);
 
-	int threadsPerBlock = atoi(argv[1]);
+    double alpha = (argc > 2) ? atof(argv[2]) : DEFAULT_ALPHA;
 
-	double alpha = (argc > 2) ? atof(argv[2]) : DEFAULT_ALPHA;
+    size_t n = (argc > 3) ? atoll(argv[3]) : DEFAULT_N;
 
-	size_t n = (argc > 3) ? atoll(argv[3]) : DEFAULT_N;
+    long blocksPerGrid = ceil(n / threadsPerBlock);
 
-	long blocksPerGrid = ceil(n / threadsPerBlock);
+    double* x;
+    double* y;
 
-	double* x;
-	double* y;
+    double* cpu_x;
+    double* cpu_y;
 
-	double* cpu_x;
-	double* cpu_y;
+    cudaDeviceProp prop;
 
-	cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
 
-	cudaGetDeviceProperties(&prop, 0);
+    checkCUDAError("Getting device properties");
 
-	checkCUDAError("Getting device properties");
+    double start_alloc, start_alloc2, end_alloc;
+    double start_init, end_init;
+    double start_daxpy, end_daxpy;
+    double start_dh, end_dh;
+    double overhead;
 
-	double start_alloc, start_alloc2, end_alloc;
-	double start_init, end_init;
-	double start_daxpy, end_daxpy;
-	double start_dh, end_dh;
-	double overhead;
+    start_alloc = get_time();
+    start_alloc2 = get_time();
 
-	start_alloc = get_time();
-	start_alloc2 = get_time();
+    cudaMallocManaged(&x, n * sizeof(double));
+    cudaMallocManaged(&y, n * sizeof(double));
 
-	cudaMallocManaged(&x, n * sizeof(double));
-	cudaMallocManaged(&y, n * sizeof(double));
+    cpu_x = (double*)malloc(n * sizeof(double));
+    cpu_y = (double*)malloc(n * sizeof(double));
 
-	cpu_x = (double*)malloc(n * sizeof(double));
-	cpu_y = (double*)malloc(n * sizeof(double));
+    end_alloc = get_time();
 
-	end_alloc = get_time();
+    checkCUDAError("GPU Alloc");
 
-	checkCUDAError("GPU Alloc");
+    if (cpu_x == NULL || cpu_y == NULL) {
 
-	if (cpu_x == NULL || cpu_y == NULL) {
+        printf("Failed to allocate host memory\n");
+        return EXIT_FAILURE;
+    }
 
-		printf("Failed to allocate host memory\n");
-		return EXIT_FAILURE;
+    start_init = get_time();
 
-	}
+    init<<<blocksPerGrid, threadsPerBlock>>>(x, y, n);
 
-	start_init = get_time();
+    cudaDeviceSynchronize();
 
-	init<<<blocksPerGrid, threadsPerBlock>>>(x, y, n);
+    end_init = get_time();
 
-	cudaDeviceSynchronize();
+    checkCUDAError("Init");
 
-	end_init = get_time();
+    start_daxpy = get_time();
 
-	checkCUDAError("Init");
+    daxpy<<<blocksPerGrid, threadsPerBlock>>>(x, y, alpha, n);
 
-	start_daxpy = get_time();
+    cudaDeviceSynchronize();
 
-	daxpy<<<blocksPerGrid, threadsPerBlock>>>(x, y, alpha, n);
+    end_daxpy = get_time();
 
-	cudaDeviceSynchronize();
+    checkCUDAError("DAXPY");
 
-	end_daxpy = get_time();
+    for (size_t i = 0; i < n; i++) {
 
-	checkCUDAError("DAXPY");
+        cpu_x[i] = i;
+        cpu_y[i] = i;
+    }
 
-	for (size_t i = 0; i < n; i++) {
+    start_dh = get_time();
 
-		cpu_x[i] = i;
-		cpu_y[i] = i;
+    cudaMemPrefetchAsync(y, n * sizeof(double), cudaCpuDeviceId);
+    cudaDeviceSynchronize();
 
-	}
+    end_dh = get_time();
 
-	start_dh = get_time();
+    cpu_daxpy(cpu_x, cpu_y, alpha, n);
 
-	cudaMemPrefetchAsync(y, n * sizeof(double), cudaCpuDeviceId);
-	cudaDeviceSynchronize();
+    int errors = 0;
 
-	end_dh = get_time();
+    for (size_t i = 0; i < n; i++) {
 
-	cpu_daxpy(cpu_x, cpu_y, alpha, n);
+        double diff = fabs(y[i] - cpu_y[i]);
 
-	int errors = 0;
+        if (diff > 1e-5) {
 
-	for (size_t i = 0; i < n; i++) {
+            errors = 1;
+            break;
+        }
+    }
 
-		double diff = fabs(y[i] - cpu_y[i]);
+    int maxBlocksPerSM;
 
-		if (diff > 1e-5) {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, daxpy,
+                                                  threadsPerBlock, 0);
 
-			errors = 1;
-			break;
+    float occupancy = (float)(maxBlocksPerSM * threadsPerBlock) /
+                      prop.maxThreadsPerMultiProcessor;
 
-		}
+    overhead = start_alloc2 - start_alloc;
+    double alloc_time = end_alloc - start_alloc - overhead;
+    double init_time = end_init - start_init - overhead;
+    double daxpy_time = end_daxpy - start_daxpy - overhead;
+    double dh_time = end_dh - start_dh - overhead;
+    double total_time = alloc_time + init_time + daxpy_time + dh_time;
 
-	}
+    printf("PAE,%d,%ld,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,%f,PAE\n",
+           threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead,
+           alloc_time, init_time, daxpy_time, dh_time, total_time, n, alpha);
 
-	int maxBlocksPerSM;
+    if (errors == 0) {
 
-	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxBlocksPerSM, daxpy, threadsPerBlock, 0);
+        printf("Verification PASSED! CPU and GPU results match.\n");
 
-	float occupancy = (float)(maxBlocksPerSM * threadsPerBlock) / prop.maxThreadsPerMultiProcessor;
+    } else {
 
-	overhead = start_alloc2 - start_alloc;
-	double alloc_time = end_alloc - start_alloc - overhead;
-	double init_time = end_init - start_init - overhead;
-	double daxpy_time = end_daxpy - start_daxpy - overhead;
-	double dh_time = end_dh - start_dh - overhead;
-	double total_time = alloc_time + init_time + daxpy_time + dh_time;
+        printf("Verification FAILED! CPU and GPU results do not match.\n");
+    }
 
-	printf("PAE,%d,%ld,%d,%f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%ld,%f,PAE\n", threadsPerBlock, blocksPerGrid, maxBlocksPerSM, occupancy, overhead, alloc_time, init_time, daxpy_time, dh_time, total_time, n, alpha);
+    cudaFree(x);
+    checkCUDAError("Freeing x");
 
-	if (errors == 0) {
+    cudaFree(y);
+    checkCUDAError("Freeing y");
 
-		printf("Verification PASSED! CPU and GPU results match.\n");
+    free(cpu_x);
+    free(cpu_y);
 
-	} else {
-
-		printf("Verification FAILED! CPU and GPU results do not match.\n");
-
-	}
-
-	cudaFree(x);
-	checkCUDAError("Freeing x");
-
-	cudaFree(y);
-	checkCUDAError("Freeing y");
-
-	free(cpu_x);
-	free(cpu_y);
-
-	return EXIT_SUCCESS;
-
+    return EXIT_SUCCESS;
 }
