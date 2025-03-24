@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <cuda_runtime.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define SIZE 8192
 #define BYTES SIZE * sizeof(int)
@@ -12,136 +12,126 @@
 // Error checking function
 void checkCUDAError(const char* msg) {
 
-	cudaError_t err = cudaGetLastError();
+    cudaError_t err = cudaGetLastError();
 
-	if (err != cudaSuccess) {
+    if (err != cudaSuccess) {
 
-		fprintf(stderr, "CUDA error: %s: %s\n", msg, cudaGetErrorString(err));
-		exit(EXIT_FAILURE);
-
-	}
-
+        fprintf(stderr, "CUDA error: %s: %s\n", msg, cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
 }
 
 // Kernel para inicializar el array
 __global__ void initArray(int* x, int size) {
 
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx < size) {
+    if (idx < size) {
 
-		x[idx] = idx;
-
-	}
-
+        x[idx] = idx;
+    }
 }
 
 // Kernel para invertir el array
 __global__ void invertArray(int* x, int* y, int size) {
 
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (idx < size) {
+    if (idx < size) {
 
-		y[size - 1 - idx] = x[idx];
-
-	}
-
+        y[size - 1 - idx] = x[idx];
+    }
 }
 
 // Function to verify result
 bool verifyResult(int* y, int size) {
 
-	for (int i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
 
-		if (y[i] != size - 1 - i) {
+        if (y[i] != size - 1 - i) {
 
-			printf("Error en la posición %d: esperado %d, obtenido %d\n", i, size - 1 - i, y[i]);
-			return false;
+            printf("Error en la posición %d: esperado %d, obtenido %d\n", i,
+                   size - 1 - i, y[i]);
+            return false;
+        }
+    }
 
-		}
-
-	}
-
-	return true;
-
+    return true;
 }
 
 int main() {
 
-	// Allocate host memory
-	int* h_y = (int*)malloc(BYTES);
+    // Allocate host memory
+    int* h_y = (int*)malloc(BYTES);
 
-	// Allocate device memory
-	int *d_x, *d_y;
+    // Allocate device memory
+    int *d_x, *d_y;
 
-	cudaMalloc(&d_x, BYTES);
-	cudaMalloc(&d_y, BYTES);
+    cudaMalloc(&d_x, BYTES);
+    cudaMalloc(&d_y, BYTES);
 
-	checkCUDAError("cudaMalloc failed");
+    checkCUDAError("cudaMalloc failed");
 
-	// Initialize array on GPU
-	initArray<<<GRID_SIZE, BLOCK_SIZE>>>(d_x, SIZE);
-	cudaDeviceSynchronize();
+    // Initialize array on GPU
+    initArray<<<GRID_SIZE, BLOCK_SIZE>>>(d_x, SIZE);
+    cudaDeviceSynchronize();
 
-	checkCUDAError("Kernel initialization failed");
+    checkCUDAError("Kernel initialization failed");
 
-	// Create CUDA events for timing
-	cudaEvent_t start;
-	cudaEvent_t stop;
+    // Create CUDA events for timing
+    cudaEvent_t start;
+    cudaEvent_t stop;
 
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
-	// Record start time
-	cudaEventRecord(start);
+    // Record start time
+    cudaEventRecord(start);
 
-	// Invert array
-	invertArray<<<GRID_SIZE, BLOCK_SIZE>>>(d_x, d_y, SIZE);
-	cudaDeviceSynchronize();
+    // Invert array
+    invertArray<<<GRID_SIZE, BLOCK_SIZE>>>(d_x, d_y, SIZE);
+    cudaDeviceSynchronize();
 
-	// Record stop time
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
+    // Record stop time
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
 
-	// Calculate elapsed time
-	float milliseconds = 0;
+    // Calculate elapsed time
+    float milliseconds = 0;
 
-	cudaEventElapsedTime(&milliseconds, start, stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
 
-	printf("Execution time: %.3f ms\n", milliseconds);
+    printf("Execution time: %.3f ms\n", milliseconds);
 
-	// Check for errors
-	checkCUDAError("Kernel execution failed");
+    // Check for errors
+    checkCUDAError("Kernel execution failed");
 
-	// Copy result back to host
-	cudaMemcpy(h_y, d_y, BYTES, cudaMemcpyDeviceToHost);
+    // Copy result back to host
+    cudaMemcpy(h_y, d_y, BYTES, cudaMemcpyDeviceToHost);
 
-	checkCUDAError("cudaMemcpy failed");
+    checkCUDAError("cudaMemcpy failed");
 
-	// Verify result
+    // Verify result
 
-	if (verifyResult(h_y, SIZE)) {
+    if (verifyResult(h_y, SIZE)) {
 
-		printf("Nice!\n");
+        printf("Nice!\n");
 
-	} else {
+    } else {
 
-		printf("F!\n");
+        printf("F!\n");
+    }
 
-	}
+    // Cleanup
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 
-	// Cleanup
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
+    cudaFree(d_x);
+    cudaFree(d_y);
 
-	cudaFree(d_x);
-	cudaFree(d_y);
+    checkCUDAError("cudaFree failed");
 
-	checkCUDAError("cudaFree failed");
+    free(h_y);
 
-	free(h_y);
-
-	return EXIT_SUCCESS;
-
+    return EXIT_SUCCESS;
 }
