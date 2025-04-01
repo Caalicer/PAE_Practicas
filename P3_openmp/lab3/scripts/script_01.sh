@@ -11,7 +11,7 @@
 # Valid for exercises [01, 02, 03]
 
 module load gcc
-gcc -O2 -fopenmp -o main $1
+gcc -fopenmp -o main $1
 
 echo "GCC data"
 ./main
