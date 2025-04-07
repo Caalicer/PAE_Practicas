@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
 
 	size_t n = (argc > 2) ? atoi(argv[2]) : DEFAULT_N;
 
-	// Alloc 
+	// Alloc
 	double malloc_start = omp_get_wtime();
 	float *A = (float *)malloc(n * sizeof(float));
 	float *B = (float *)malloc(n * sizeof(float));

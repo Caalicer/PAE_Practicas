@@ -1,6 +1,7 @@
 *.env
-*/lab*/images/*
 */lab*/outs/*
 .ltxaux/
 *.synctex.gz
 *venv
+.DS_Store
+*images
