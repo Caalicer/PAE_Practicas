@@ -2,15 +2,24 @@
 
 #SBATCH -N 1
 #SBATCH -c 1
-#SBATCH --mem 128G
-#SBATCH -t 00:10:00
+#SBATCH --mem 32G
+#SBATCH -t 02:00:00
 #SBATCH -J P4_1
 #SBATCH -o ./outs/P4_1.o
 #SBATCH -e ./outs/P4_1.e
 
 module load gcc
-gcc -O2 -o main $1
 
-./main
+gcc -Wall -D VERBOSE -O2 -lm -o main $1
 
-rm main
+max_iter=10
+
+for image in $(ls ./images/*.raw); do
+
+	for i in $(seq 1 $max_iter); do
+
+		./main $image
+
+	done
+
+done
