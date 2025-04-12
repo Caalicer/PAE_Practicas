@@ -1,6 +1,6 @@
 #include "headerImage.h"
 
-#define DEFAULT_CLUSTERS 20
+#define DEFAULT_CLUSTERS 10
 #define DEFAULT_MAX_ITERATIONS 500
 
 typedef struct {
@@ -24,30 +24,9 @@ typedef struct {
 	long image_size;
 } ExecutionData;
 
-double calculate_error(const HSI& data, u_char* clustering, baseType* centroids, int clusters) {
+double calculate_error(const HSI& data, u_char* clustering, baseType* centroids, baseType* yi2) {
 
 	double total_error = 0.0;
-
-	baseType* yi2 = (baseType *) malloc(clusters * sizeof(baseType));
-
-	if (!yi2) {
-
-		printf("Error: Unable to alloc memory | Calculate error \n");
-		return -1.0;
-
-	}
-
-	for (int i = 0; i < clusters; i++) {
-
-		yi2[i] = 0;
-
-		for (int j = 0; j < data.bands; j++) {
-
-			yi2[i] += centroids[i * data.bands + j] * centroids[i * data.bands + j];
-
-		}
-
-	}
 
 	for (int i = 0; i < data.slice; i++) {
 
@@ -67,7 +46,6 @@ double calculate_error(const HSI& data, u_char* clustering, baseType* centroids,
 
 	}
 
-	free(yi2);
 	return total_error;
 
 }
@@ -246,9 +224,8 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 	for (int iter = 0; iter < iterations; iter++) {
 
-		double iter_time = get_time();
-
 		#ifdef VERBOSE
+			double iter_time = get_time();
 			printf("Starting iteration %d/%d\n", iter+1, iterations);
 		#endif
 
@@ -291,7 +268,7 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 			double error_start = get_time();
 
-			execution_data->kmeans_error = calculate_error(data, clustering, centroids, clusters);
+			execution_data->kmeans_error = calculate_error(data, clustering, centroids, yi2);
 
 			execution_data->kmeans_error_time += get_time() - error_start;
 
@@ -342,7 +319,7 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 		double error_start = get_time();
 
-		execution_data->kmeans_error = calculate_error(data, clustering, centroids, clusters);
+		execution_data->kmeans_error = calculate_error(data, clustering, centroids, yi2);
 
 		execution_data->kmeans_error_time += get_time() - error_start;
 
@@ -453,7 +430,7 @@ int main(int argc, char *argv[]) {
 
 	double save_start = get_time();
 
-	if (savePGM("result.pgm", clustering, data.cols, data.rows) != 0) {
+	if (savePGM("sequential_result.pgm", clustering, data.cols, data.rows) != 0) {
 
 		printf("Error: Unable to save result image \n");
 
