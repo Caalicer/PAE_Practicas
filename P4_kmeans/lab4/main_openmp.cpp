@@ -93,7 +93,6 @@ baseType* init_centroids(const HSI& data, int clusters) {
 
 	}
 
-	#pragma omp parallel for
 	for (int i = 0; i < clusters; i++) {
 
 		int pos = rand() % data.slice;
@@ -353,7 +352,7 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 int main(int argc, char *argv[]) {
 
-	srand(time(NULL));
+	srand(0);
 
 	if (argc < 3) {
 		printf("Usage: %s hyperspectral.raw num_threads [num. clusters] [num. iterations]\n", argv[0]);
@@ -458,5 +457,5 @@ int main(int argc, char *argv[]) {
 	printf("\nPAE,%s,%d,%ld,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,PAE\n", image_path, execution_data.clusters, execution_data.image_size, execution_data.iterations, execution_data.num_threads, execution_data.overhead, execution_data.read, execution_data.standardize, execution_data.kmeans_malloc, execution_data.kmeans_init, execution_data.kmeans_yi2, execution_data.kmeans_distance, execution_data.kmeans_update, execution_data.kmeans_free, execution_data.kmeans_total, execution_data.kmeans_error, execution_data.kmeans_error_time, execution_data.save, execution_data.free, execution_data.total);
 
 	return EXIT_SUCCESS;
-	
+
 }

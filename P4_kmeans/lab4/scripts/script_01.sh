@@ -2,8 +2,8 @@
 
 #SBATCH -N 1
 #SBATCH -c 1
-#SBATCH --mem 32G
-#SBATCH -t 24:00:00
+#SBATCH --mem 8G
+#SBATCH -t 6:00:00
 #SBATCH -J P4_1
 #SBATCH -o ./outs/P4_1.o
 #SBATCH -e ./outs/P4_1.e

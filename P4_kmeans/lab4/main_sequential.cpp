@@ -354,7 +354,7 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 int main(int argc, char *argv[]) {
 
-	srand(time(NULL));
+	srand(0);
 
 	if (argc < 2) {
 
