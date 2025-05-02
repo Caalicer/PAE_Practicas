@@ -3,6 +3,8 @@
 
 #define DEFAULT_CLUSTERS 10
 #define DEFAULT_MAX_ITERATIONS 500
+#define DEFAULT_SCHEDULING 0
+#define DEFAULT_CHUNK_SIZE 1
 
 typedef struct {
 	double total;
@@ -20,11 +22,20 @@ typedef struct {
 	double kmeans_free;
 	double kmeans_error;
 	double kmeans_error_time;
+	int scheduling_type;
+	int chunk_size;
 	int clusters;
 	int iterations;
 	int num_threads;
 	long image_size;
 } ExecutionData;
+
+const omp_sched_t scheduling_types[] = {
+	omp_sched_static,
+	omp_sched_dynamic,
+	omp_sched_guided,
+	omp_sched_auto
+};
 
 double calculate_error(const HSI& data, u_char* clustering, baseType* centroids, baseType* yi2) {
 
@@ -355,9 +366,11 @@ int main(int argc, char *argv[]) {
 	srand(0);
 
 	if (argc < 3) {
-		printf("Usage: %s hyperspectral.raw num_threads [num. clusters] [num. iterations]\n", argv[0]);
+		printf("Usage: %s hyperspectral.raw num_threads [scheduling type] [chunk size] [num. clusters] [num. iterations] \n", argv[0]);
 		printf(" * hyperspectral.raw - The hyperspectral data in pixel vector format\n");
 		printf(" * num_threads - Number of OpenMP threads to use\n");
+		printf(" * scheduling type - (default %d)\n", DEFAULT_SCHEDULING);
+		printf(" * chunk size - (default %d)\n", DEFAULT_CHUNK_SIZE);
 		printf(" * number of clusters - (default %d)\n", DEFAULT_CLUSTERS);
 		printf(" * number of iterations - (default %d)\n", DEFAULT_MAX_ITERATIONS);
 		return EXIT_FAILURE;
@@ -371,14 +384,23 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	// Configuración global del número de hilos
-	omp_set_dynamic(0);
-	omp_set_num_threads(num_threads);
-
 	ExecutionData execution_data = {0};
 	execution_data.num_threads = num_threads;
-	execution_data.clusters = (argc < 4) ? DEFAULT_CLUSTERS : atoi(argv[3]);
-	execution_data.iterations = (argc < 5) ? DEFAULT_MAX_ITERATIONS : atoi(argv[4]);
+	execution_data.scheduling_type = (argc < 4) ? DEFAULT_SCHEDULING : atoi(argv[3]);
+	execution_data.chunk_size = (argc < 5) ? DEFAULT_CHUNK_SIZE : atoi(argv[4]);
+	execution_data.clusters = (argc < 6) ? DEFAULT_CLUSTERS : atoi(argv[5]);
+	execution_data.iterations = (argc < 7) ? DEFAULT_MAX_ITERATIONS : atoi(argv[6]);
+
+	if (execution_data.scheduling_type < 0 || execution_data.scheduling_type > 3) {
+		printf("Error: Invalid scheduling type\n");
+		return EXIT_FAILURE;
+	}
+
+	if (execution_data.chunk_size <= 0) {
+		printf("Error: Chunk size must be positive\n");
+		return EXIT_FAILURE;
+	}
+
 
 	if (execution_data.clusters <= 0) {
 		printf("Error: Number of clusters must be positive\n");
@@ -390,7 +412,13 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	printf("Running with %d threads\n", num_threads);
+	omp_set_dynamic(0);
+	omp_set_num_threads(num_threads);
+	omp_set_schedule(scheduling_types[execution_data.scheduling_type], execution_data.chunk_size);
+
+	#ifdef VERBOSE
+		printf("Running with %d threads\n", num_threads);
+	#endif
 
 	double total_start = get_time();
 	double overhead_start = get_time();
@@ -454,7 +482,7 @@ int main(int argc, char *argv[]) {
 		printf("Total execution time: %.6f seconds\n", execution_data.total);
 	#endif
 
-	printf("\nPAE,%s,%d,%ld,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,PAE\n", image_path, execution_data.clusters, execution_data.image_size, execution_data.iterations, execution_data.num_threads, execution_data.overhead, execution_data.read, execution_data.standardize, execution_data.kmeans_malloc, execution_data.kmeans_init, execution_data.kmeans_yi2, execution_data.kmeans_distance, execution_data.kmeans_update, execution_data.kmeans_free, execution_data.kmeans_total, execution_data.kmeans_error, execution_data.kmeans_error_time, execution_data.save, execution_data.free, execution_data.total);
+	printf("\nPAE,%s,%d,%d,%d,%ld,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,PAE\n", image_path, execution_data.scheduling_type, execution_data.chunk_size, execution_data.clusters, execution_data.image_size, execution_data.iterations, execution_data.num_threads, execution_data.overhead, execution_data.read, execution_data.standardize, execution_data.kmeans_malloc, execution_data.kmeans_init, execution_data.kmeans_yi2, execution_data.kmeans_distance, execution_data.kmeans_update, execution_data.kmeans_free, execution_data.kmeans_total, execution_data.kmeans_error, execution_data.kmeans_error_time, execution_data.save, execution_data.free, execution_data.total);
 
 	return EXIT_SUCCESS;
 
