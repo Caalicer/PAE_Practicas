@@ -16,9 +16,11 @@ typedef struct {
 	double kmeans_total;
 	double kmeans_malloc;
 	double kmeans_init;
+	double kmeans_yi2_init;
 	double kmeans_yi2;
 	double kmeans_distance;
-	double kmeans_update;
+	double kmeans_update_1;
+	double kmeans_update_2;
 	double kmeans_free;
 	double kmeans_error;
 	double kmeans_error_time;
@@ -77,6 +79,7 @@ double get_time() {
 
 }
 
+// This function is not parallelized because it is called inside a parallel region
 baseType distance(baseType *data, baseType *centroid, baseType yi2, int bands) {
 
 	baseType xiyi = 0;
@@ -104,9 +107,28 @@ baseType* init_centroids(const HSI& data, int clusters) {
 
 	}
 
+	int* indices = (int*) malloc(clusters * sizeof(int));
+
+	if (!indices) {
+
+		printf("Error: Unable to alloc memory | Init indices \n");
+
+		free(centroids);
+
+		return NULL;
+
+	}
+
 	for (int i = 0; i < clusters; i++) {
 
-		int pos = rand() % data.slice;
+		indices[i] = rand() % data.slice;
+
+	}
+
+	#pragma omp parallel for
+	for (int i = 0; i < clusters; i++) {
+
+		int pos = indices[i];
 
 		for (int j = 0; j < data.bands; j++) {
 
@@ -115,6 +137,8 @@ baseType* init_centroids(const HSI& data, int clusters) {
 		}
 
 	}
+
+	free(indices);
 
 	return centroids;
 
@@ -220,6 +244,8 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 	baseType *centroids = init_centroids(data, clusters);
 
+	execution_data->kmeans_init = get_time() - init_start;
+
 	if (!centroids) {
 
 		free(temp_centroids);
@@ -233,9 +259,11 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 	}
 
+	double init_yi2_start = get_time();
+
 	get_yi2(yi2, centroids, data.bands, clusters);
 
-	execution_data->kmeans_init = get_time() - init_start;
+	execution_data->kmeans_yi2_init = get_time() - init_yi2_start;
 
 	#ifdef VERBOSE
 		printf("Centroids initialized in %.6f seconds\n", execution_data->kmeans_init);
@@ -296,7 +324,8 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 		}
 
-		double update_start = get_time();
+		double update_start_1 = get_time();
+
 		memset(temp_centroids, 0, clusters * data.bands * sizeof(baseType));
 
 		#pragma omp parallel for reduction(+:temp_centroids[:clusters*data.bands])
@@ -309,6 +338,10 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 			}
 
 		}
+
+		execution_data->kmeans_update_1 += get_time() - update_start_1;
+
+		double update_start_2 = get_time();
 
 		#pragma omp parallel for
 		for (int i = 0; i < clusters; i++) {
@@ -327,25 +360,33 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 		}
 
+		execution_data->kmeans_update_2 += get_time() - update_start_2;
+
 		double yi2_start = get_time();
+
 		get_yi2(yi2, centroids, data.bands, clusters);
+
 		execution_data->kmeans_yi2 += get_time() - yi2_start;
-		execution_data->kmeans_update += get_time() - update_start;
 
 		double error_start = get_time();
+
 		execution_data->kmeans_error = calculate_error(data, clustering, centroids, yi2);
+
 		execution_data->kmeans_error_time += get_time() - error_start;
 
 		#ifdef VERBOSE
 			printf("Iteration %d completed in %.6f seconds | Current error: %.6f \n", iter+1, get_time() - iter_time, execution_data->kmeans_error);
 		#endif
+
 	}
 
 	double free_start = get_time();
+
 	free(centroids);
 	free(temp_centroids);
 	free(yi2);
 	free(count);
+
 	execution_data->kmeans_free = get_time() - free_start;
 
 	#ifdef VERBOSE
@@ -376,7 +417,7 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	const char* image_path = argv[1];
+	char* image_path = argv[1];
 	int num_threads = atoi(argv[2]);
 
 	if (num_threads <= 0) {
@@ -452,9 +493,16 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	char* image_name = strrchr(image_path, '/');
+	image_name++;
+
+	char output_path[256];
+
+	snprintf(output_path, sizeof(output_path), "./outs/result_%s_%d_%d_%d_%d.pgm", image_name, execution_data.clusters, execution_data.iterations, execution_data.scheduling_type, execution_data.chunk_size);
+
 	double save_start = get_time();
 
-	if (savePGM("openmp_result.pgm", clustering, data.cols, data.rows) != 0) {
+	if (savePGM(output_path, clustering, data.cols, data.rows) != 0) {
 
 		printf("Error: Unable to save result image\n");
 
@@ -482,7 +530,7 @@ int main(int argc, char *argv[]) {
 		printf("Total execution time: %.6f seconds\n", execution_data.total);
 	#endif
 
-	printf("\nPAE,%s,%d,%d,%d,%ld,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,PAE\n", image_path, execution_data.scheduling_type, execution_data.chunk_size, execution_data.clusters, execution_data.image_size, execution_data.iterations, execution_data.num_threads, execution_data.overhead, execution_data.read, execution_data.standardize, execution_data.kmeans_malloc, execution_data.kmeans_init, execution_data.kmeans_yi2, execution_data.kmeans_distance, execution_data.kmeans_update, execution_data.kmeans_free, execution_data.kmeans_total, execution_data.kmeans_error, execution_data.kmeans_error_time, execution_data.save, execution_data.free, execution_data.total);
+	printf("\nPAE,%s,%d,%d,%d,%ld,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,PAE\n", image_path, execution_data.scheduling_type, execution_data.chunk_size, execution_data.clusters, execution_data.image_size, execution_data.iterations, execution_data.num_threads, execution_data.overhead, execution_data.read, execution_data.standardize, execution_data.kmeans_malloc, execution_data.kmeans_init, execution_data.kmeans_yi2_init, execution_data.kmeans_yi2, execution_data.kmeans_distance, execution_data.kmeans_update_1, execution_data.kmeans_update_2, execution_data.kmeans_free, execution_data.kmeans_total, execution_data.kmeans_error, execution_data.kmeans_error_time, execution_data.save, execution_data.free, execution_data.total);
 
 	return EXIT_SUCCESS;
 
