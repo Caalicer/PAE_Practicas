@@ -309,7 +309,9 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 		if (iter == iterations - 1) {
 
 			double yi2_start = get_time();
+
 			get_yi2(yi2, centroids, data.bands, clusters);
+
 			execution_data->kmeans_yi2 += get_time() - yi2_start;
 
 			double error_start = get_time();
