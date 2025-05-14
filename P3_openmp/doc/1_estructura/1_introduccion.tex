@@ -1,0 +1,33 @@
+\chapter{Introducción}
+
+En el panorama actual de la computación de alto rendimiento, la programación paralela en sistemas de memoria compartida se ha convertido en un componente fundamental para el aprovechamiento eficiente de las arquitecturas \textit{multicore} modernas. El paradigma de programación OpenMP (\textit{Open Multi-Processing}) destaca como una solución estándar y portable que permite explotar el paralelismo a nivel de hilo en procesadores multinúcleo, facilitando el desarrollo de aplicaciones que pueden beneficiarse de la ejecución concurrente. En este contexto, la presente práctica se centra en la \textbf{Programación Básica y Programación de Algoritmos Paralelos con OpenMP}, constituyendo el tercer bloque del laboratorio dentro de la asignatura de \textbf{Programación de Arquitecturas Emergentes} del Grado en Ingeniería Informática.
+
+El objetivo principal de esta práctica es adquirir los conocimientos fundamentales para la implementación de programas paralelos en sistemas de memoria compartida y aplicar las metodologías de programación paralela estudiadas en clase utilizando OpenMP. Las actividades se desarrollarán en los nodos de cómputo del \textbf{Centro de Supercomputación de Galicia} (CESGA), específicamente en el sistema \texttt{FTIII} que proporciona nodos con 64 \textit{cores}, representando un entorno ideal para la experimentación con diferentes configuraciones de paralelismo a nivel de hilo.
+
+A diferencia de prácticas anteriores centradas en algoritmos secuenciales o en la programación con CUDA para GPUs, este trabajo aborda la implementación y optimización de algoritmos fundamentales que exploran diferentes características de OpenMP y patrones de paralelismo en CPUs \textit{multicore}. La estructura de la práctica se divide en dos bloques principales que abordan progresivamente diferentes aspectos del paralelismo con OpenMP:
+
+\begin{itemize}
+
+    \item \textbf{Bloque 1: Programación básica con OpenMP}: Este bloque se enfoca en comprender los fundamentos de OpenMP, explorando aspectos como el comportamiento por defecto del \textit{scheduling} y \textit{chunk size} en distintos compiladores, el estudio de los \textit{pragmas} esenciales como \texttt{reduction}, \texttt{collapse}, \texttt{task} y \texttt{taskloop} asi como la implementación de técnicas de reparto de trabajo para la inicialización eficiente de matrices de gran tamaño.
+
+    \item \textbf{Bloque 2: Programación de algoritmos paralelos con OpenMP}: En este bloque se implementarán dos algoritmos fundamentales con diferentes patrones de acceso a memoria y requisitos de paralelismo:
+
+    \begin{itemize}
+    
+        \item \textbf{Distancia Euclídea}: Un algoritmo que requiere operaciones de reducción, implementado tanto con la cláusula \texttt{reduction} nativa de OpenMP como con una versión propia para comparar su eficiencia. Se analizará el tipo de escalabilidad (fuerte o débil) para determinar cómo responde el algoritmo ante diferentes configuraciones.
+
+        \item \textbf{Convolución}: Un algoritmo con patrones de acceso regular pero intensivo en cómputo, utilizado ampliamente en procesamiento de señales e imágenes. Se evaluará su aceleración (\textit{speedup}) al variar el número de hilos y se explorarán diferentes estrategias de optimización.
+        
+    \end{itemize}
+
+\end{itemize}
+
+La arquitectura multinúcleo del sistema \texttt{FTIII} proporciona un escenario ideal para estas implementaciones, permitiendo experimentar con un gran número de \textit{cores} en un entorno de memoria compartida. Esta configuración \textit{hardware} posibilita explorar los límites reales del paralelismo a nivel de hilo y evaluar cómo diferentes decisiones de diseño en la programación con OpenMP afectan al rendimiento final de los algoritmos.
+
+Este estudio no solo busca lograr implementaciones eficientes, sino también comprender en profundidad cómo las características arquitectónicas de los procesadores multinúcleo modernos y las opciones de configuración de OpenMP influyen en el rendimiento de diferentes patrones algorítmicos. Se analizarán aspectos críticos como la configuración óptima de \textit{scheduling} y \textit{chunk size}, las políticas de reparto de iteraciones, el balance de carga entre hilos, y la comparación entre diferentes \textit{pragmas} de paralelismo como \texttt{parallel for} frente a \texttt{taskloop}.
+
+Los resultados obtenidos se documentarán mediante un análisis comparativo, abarcando diversas métricas clave que permitan evaluar el rendimiento y la eficiencia de las implementaciones desarrolladas. En particular, se medirán los factores de aceleración (\textit{speedup}) con respecto a ejecuciones secuenciales optimizadas, utilizando diferentes configuraciones de hilos (2, 4, 8, 16, 32, 48 y 64), y se analizarán por separado tanto el rendimiento global como el de los \textit{kernels} computacionales específicos.
+
+Además, se estudiarán en profundidad los patrones de concurrencia y su relación con la arquitectura subyacente, explorando cómo la topología del procesador (visualizada con herramientas como \texttt{lstopo}) influye en el desempeño de las implementaciones paralelas. Se evaluará la eficiencia en la utilización de los recursos computacionales y se explorarán posibles cuellos de botella que puedan surgir en la ejecución, junto con estrategias para mitigarlos.
+
+Finalmente, se discutirán las observaciones y conclusiones derivadas de la experimentación con distintas configuraciones de ejecución, proporcionando una visión integral sobre la programación eficiente con OpenMP en sistemas de memoria compartida. Este análisis permitirá no solo validar la efectividad de las estrategias implementadas, sino también extraer pautas generales para el desarrollo de algoritmos paralelos altamente optimizados en arquitecturas \textit{multicore} modernas.

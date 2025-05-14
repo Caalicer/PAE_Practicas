@@ -1,0 +1,51 @@
+\chapter{Entorno de ejecución}
+
+Para llevar a cabo este estudio, los algoritmos paralelos serán implementados y ejecutados en el supercomputador FinisTerrae III del Centro de Supercomputación de Galicia (CESGA), aprovechando su arquitectura multinúcleo para evaluar el rendimiento de las implementaciones con OpenMP.
+
+El FinisTerrae III, instalado en el año 2021 y puesto en producción en el año 2022, es un supercomputador modelo Bull ATOS bullx distribuido en 13 \textit{racks} con un total de 354 nodos de computación. Este sistema de alto rendimiento dispone de 22656 núcleos Intel Xeon Ice Lake 8352Y, junto con 128 GPUs NVIDIA A100 y 16 NVIDIA T4 para aceleración de cómputo. Para nuestros experimentos con OpenMP, resultan particularmente relevantes los nodos estándar equipados con procesadores Intel Xeon, que ofrecen características excepcionales para computación paralela en memoria compartida:
+
+\begin{itemize}
+
+    \item \textbf{Procesadores}: 2 procesadores Intel Xeon Ice Lake 8352Y por nodo de computación.
+    
+    \item \textbf{Núcleos físicos}: 64 \textit{cores} por nodo (32 \textit{cores} por \textit{socket}).
+    
+    \item \textbf{Jerarquía de caché}: Tres niveles con caché L1 y L2 dedicadas por \textit{core}, y una L3 compartida que mejora el rendimiento en aplicaciones paralelas con datos compartidos.
+    
+    \item \textbf{Instrucciones vectoriales}: Soporte para conjuntos de instrucciones AVX-512, que permiten procesamiento vectorial optimizado de datos en punto flotante.
+    
+\end{itemize}
+
+La interconexión entre nodos se realiza mediante una red Mellanox Infiniband HDR de baja latencia y alta velocidad, crucial para aplicaciones distribuidas, aunque en nuestra práctica nos centraremos principalmente en el paralelismo a nivel de hilo dentro de un único nodo aprovechando la arquitectura de memoria compartida. El sistema de almacenamiento Lustre con 5000 TB proporciona el espacio necesario para los conjuntos de datos y resultados experimentales, con un rendimiento optimizado para operaciones de Entrada/Salida intensivas.
+
+Con una capacidad máxima de cómputo teórica de 4 PetaFlops, el FinisTerrae III representa un entorno ideal para la evaluación de algoritmos paralelos, permitiéndonos analizar el comportamiento de implementaciones OpenMP bajo condiciones de alta disponibilidad de recursos computacionales.
+
+\newpage
+
+\section{Consideraciones}
+	
+Todos los experimentos se realizarán siguiendo estas pautas:
+    
+\begin{itemize}
+
+    \item Desarrollo inicial en nodos interactivos para depuración y pruebas (\texttt{compute}).
+    
+    \item Mediciones finales en nodos completos con 64 \textit{cores} mediante el sistema de colas SLURM, utilizando la cola \texttt{short}.
+    
+    \item Compilación con optimizaciones \texttt{-O2} tanto con el compilador GNU GCC como con el compilador Intel ICC para comparar rendimiento.
+    
+    \item Tiempo de ejecución calculado como media de 10 ejecuciones para mitigar variabilidad estadística.
+    
+    \item Separación explícita del \textit{overhead} de gestión de memoria (\textit{malloc}, \textit{free}, inicialización) del tiempo de ejecución de los algoritmos paralelos.
+    
+    \item Exploración sistemática de diferentes políticas de \textit{scheduling} (\textit{static}, \textit{dynamic}, \textit{guided} y \textit{auto}) y tamaños de \textit{chunk}.
+    
+    \item Análisis de la topología del procesador utilizando la herramienta \texttt{lstopo} para optimizar el comportamiento según la disposición NUMA.
+    
+    \item Verificación exhaustiva de la corrección de resultados mediante comparación con implementaciones secuenciales.
+    
+    \item Mediciones de métricas de rendimiento como \textit{speedup} con 2, 4, 8, 16, 32, 48 y 64 hilos para evaluar la escalabilidad.
+    
+\end{itemize}
+	
+Los experimentos se han dimensionado considerando las restricciones de tiempo impuestas por el sistema de colas del supercomputador, particularmente el límite de 2 horas en la cola corta, lo que ha condicionado tanto el tamaño de los conjuntos de datos como el número de configuraciones evaluadas.
