@@ -56,3 +56,16 @@
 
 % CAPITULOS SIN 'CAPITULO'
 \titleformat{\chapter}[hang]{\Huge\bfseries}{\thechapter.}{1em}{\LARGE}
+
+\lstset{
+	numbers=left,
+	breaklines=true,
+	basicstyle=\footnotesize\ttfamily,
+	frame=single,
+	captionpos=b,
+	tabsize=2,
+	literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1,
+}
+
+\renewcommand{\lstlistingname}{Código}
+

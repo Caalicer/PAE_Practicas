@@ -1,0 +1,33 @@
+\chapter{Entorno de ejecución}
+
+Para llevar a cabo este estudio, los algoritmos paralelos serán implementados y ejecutados en el supercomputador FinisTerrae III del Centro de Supercomputación de Galicia (CESGA), específicamente en sus nodos equipados con GPUs NVIDIA A100.
+
+El FinisTerrae III, instalado en 2021 y puesto en producción en 2022, es un supercomputador modelo Bull ATOS bullx distribuido en 13 \textit{racks} con 354 nodos de computación. Para nuestros experimentos, resultan particularmente relevantes los nodos acelerados con GPUs, que incluyen 128 unidades NVIDIA A100 basadas en la arquitectura Ampere. Estas GPUs ofrecen características excepcionales para computación paralela:
+
+\begin{itemize}
+    \item \textbf{Arquitectura}: NVIDIA Ampere con SM versión 8.0.
+    \item \textbf{Núcleos CUDA}: 6912 CUDA \textit{cores} organizados en 108 \textit{Streaming Multiprocessors} (SMs).
+    \item \textbf{Memoria}: 40GB de memoria HBM2 con 1.6 TB/s de ancho de banda.
+    \item \textbf{Rendimiento}: Hasta 19.5 TFLOPS en precisión simple y 9.7 TFLOPS en doble precisión.
+    \item \textbf{Características especiales}: 432 \textit{Tensor Cores} de tercera generación (para operaciones de inteligencia artificial) y \textit{Multi-Instance} GPU (MIG) que permite particionar la GPU.
+\end{itemize}
+
+La interconexión entre nodos se realiza mediante una red Mellanox Infiniband HDR de baja latencia, crucial para aplicaciones distribuidas, aunque en nuestra práctica nos centraremos en paralelismo a nivel de GPU dentro de un único nodo. El sistema de almacenamiento Lustre con 5000 TB proporciona el espacio necesario para los conjuntos de datos y resultados experimentales.
+
+\newpage
+
+\section{Consideraciones}
+	
+    Todos los experimentos se realizarán siguiendo estas pautas:
+    
+    \begin{itemize}
+        \item Desarrollo inicial en nodos interactivos con acceso a GPU (\texttt{compute --gpu}).
+        \item Mediciones finales en nodos A100 mediante el sistema de colas, solicitando 32 CPUs por GPU como recomienda la documentación del CESGA.
+        \item Compilación con optimizaciones \texttt{-O2} y opciones específicas para cada algoritmo.
+        \item Tiempo de ejecución calculado como media de 10 ejecuciones para mitigar variabilidad.
+        \item Separación explícita del cálculo de tiempos en las diferentes partes del código implementado.
+        \item Exploración sistemática de diferentes configuraciones de tamaños de bloque.
+        \item Verificación exhaustiva de la corrección de resultados mediante comparación con implementaciones secuenciales.
+    \end{itemize}
+	
+    Los experimentos se han dimensionado considerando las restricciones de tiempo impuestas por el sistema de colas del supercomputador, particularmente el límite de 2 horas en la cola corta, lo que ha condicionado tanto el tamaño de los conjuntos de datos como el número de configuraciones evaluadas.

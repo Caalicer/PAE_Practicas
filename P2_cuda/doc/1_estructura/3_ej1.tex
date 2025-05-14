@@ -1,0 +1,560 @@
+\chapter{Ejercicio 1: Inicialización de matriz}
+
+\section{Introducción}
+
+    En este apartado se presenta un análisis detallado del rendimiento y la ocupancia de un \textit{kernel} CUDA diseñado para inicializar una matriz de números secuenciales de tamaño 1 GiB. El objetivo principal es determinar la configuración óptima de hilos y bloques para maximizar el rendimiento en una GPU NVIDIA A100, explorando sistemáticamente diferentes configuraciones para identificar patrones y establecer recomendaciones fundamentadas para futuras implementaciones.
+    
+    La inicialización de matrices es una operación fundamental en computación paralela y, aunque aparentemente simple, permite explorar aspectos clave del rendimiento en GPUs como la organización de hilos, la ocupancia de los multiprocesadores y los patrones de acceso a memoria. Este análisis proporciona \textit{insights} valiosos sobre cómo la arquitectura de la GPU influye en el rendimiento de operaciones paralelas básicas.
+    
+    El estudio se ha realizado siguiendo metodologías rigurosas de medición y análisis, abarcando 33 configuraciones diferentes de bloques que varían tanto en tamaño como en forma, lo que permite una exploración exhaustiva del espacio de posibilidades de paralelización.
+
+\newpage
+
+\section{Descripción de la implementación}
+
+    El \textit{kernel} implementado inicializa una matriz de enteros de 1 GiB con valores secuenciales de la forma \texttt{fila*N+columna}. La parte principal del \textit{kernel} es:
+
+    \begin{listing}[h]
+        \begin{minted}[frame=single,linenos, breaklines, fontsize=\normalsize]{c}
+__global__ void initMatrix(int* matrix, size_t M, size_t N) {
+        
+    // Calculate global thread indices
+    size_t col = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Check if thread is within matrix bounds
+    if (row < M && col < N) {
+
+        size_t idx = row * N + col;
+        matrix[idx] = row * N + col;
+
+    }
+
+}
+        \end{minted}
+        \caption{Kernel de inicialización.}
+    \end{listing}
+    
+    \subsection{Características principales del código}
+
+        El código implementado presenta las siguientes características fundamentales:
+        
+        \begin{itemize}
+
+            \item \textbf{Paralelización bidimensional}: Utiliza una organización de hilos y bloques bidimensional para ``mapear'' naturalmente la estructura de la matriz.
+            
+            \item \textbf{Cálculo de índices globales}: Determina la posición global de cada hilo dentro de la matriz mediante la combinación de los índices de bloque y de hilo.
+
+            \item \textbf{Comprobación de límites}: Incorpora una verificación de límites para asegurar que los hilos no accedan a posiciones fuera de la matriz, lo que es crucial cuando el número de hilos no es un divisor exacto de las dimensiones de la matriz.
+            
+            \item \textbf{Acceso a memoria linealizado}: Convierte los índices bidimensionales en un índice lineal para acceder a la memoria global de manera eficiente.
+            
+            \item \textbf{Patrón de escritura regular}: Cada hilo escribe exactamente un valor en la matriz, siguiendo un patrón regular que facilita la coalescencia de accesos a memoria.
+            
+            \item \textbf{Ausencia de sincronización}: El \textit{kernel} no requiere sincronización entre hilos, lo que elimina posibles cuellos de botella relacionados con la coordinación.
+            
+            \item \textbf{Adaptabilidad a diferentes configuraciones}: El código está diseñado para funcionar con cualquier configuración de hilos por bloque, permitiendo una exploración exhaustiva del espacio de configuraciones.
+            
+        \end{itemize}
+        
+    \subsection{Consideraciones de diseño}
+    
+        Al diseñar este \textit{kernel}, se tuvieron en cuenta varias consideraciones importantes:
+
+        \begin{itemize}
+        
+            \item \textbf{Simplicidad computacional}: La operación de inicialización es aritméticamente simple (una multiplicación y una suma), lo que hace que el \textit{kernel} esté probablemente limitado por el acceso a memoria más que por el poder computacional.
+            
+            \item \textbf{Patrón de acceso a memoria}: Se intentó mantener un patrón de acceso a memoria que favoreciera la coalescencia, donde hilos adyacentes acceden a posiciones de memoria contiguas.
+            
+            \item \textbf{Tamaño de problema considerable}: Con 1 GiB de datos (268435456 elementos de 4 bytes), el problema es lo suficientemente grande como para ejercitar completamente la GPU y obtener mediciones significativas al mismo tiempo que no ve lastrado el proceso de evaluación por un tamaño de problema excesivo.
+            
+            \item \textbf{Flexibilidad en la configuración}: El \textit{kernel} está diseñado para funcionar con cualquier configuración de bloques, lo que permite evaluar el impacto de diferentes organizaciones de hilos en el rendimiento.
+            
+        \end{itemize}
+
+\newpage
+
+\section{Fundamentos teóricos}
+
+    \subsection{Cálculo del número de elementos}
+
+        Para una matriz que ocupe exactamente 1 GiB de memoria, como se solicita en el enunciado de la práctica, necesitamos realizar las siguientes operaciones:
+        
+        \begin{align*}
+            \text{1 GiB} &= 2^{30} \text{bytes} = 107341824 \text{bytes}.\\
+            \text{Tamaño de un entero} &= 4 \text{bytes}.\\
+            \text{Número total de elementos} &= \frac{1073741824 \text{bytes}}{4 \text{bytes/elemento}} = 268435456 \text{elementos}.
+        \end{align*}
+        
+        Para obtener una matriz cuadrada que contenga el número de elementos necesario, realizamos los siguientes cálculos:
+        
+        \begin{align*}
+            M \times N &= 268435456.\\
+            M &= N = \sqrt{268435456} = 16384.
+        \end{align*}
+
+        Por lo tanto, una matriz cuadrada de 16384×16384 elementos de tipo entero ocupan exactamente 1 GiB de memoria. Este tamaño es importante porque permite explorar el comportamiento del \textit{kernel} con una carga de trabajo sustancial, poniendo a prueba la capacidad de la GPU para gestionar grandes volúmenes de datos.
+        
+        Es importante destacar que la elección de una matriz cuadrada no es arbitraria. Las matrices cuadradas suelen facilitar la implementación de algoritmos paralelos al permitir una distribución más regular del trabajo entre los hilos. Además, en aplicaciones reales de computación científica y procesamiento de imágenes, las matrices cuadradas son comunes, lo que hace que este análisis sea relevante para casos de uso prácticos.
+
+    \subsection{Modelo de ejecución CUDA y organización de hilos}
+
+        El modelo de ejecución CUDA organiza los hilos en una jerarquía de tres niveles:
+
+        \begin{itemize}
+        
+            \item \textbf{Hilos (\textit{Threads})}: La unidad básica de ejecución. Cada hilo ejecuta el mismo código (\textit{kernel}) pero opera sobre diferentes datos.
+            
+            \item \textbf{Bloques (\textit{Blocks})}: Agrupaciones de hilos que se ejecutan en el mismo SM y pueden cooperar mediante memoria compartida y sincronización. Los bloques se asignan a SMs específicos y no pueden migrar entre ellos durante la ejecución.
+            
+            \item \textbf{\textit{Grid}}: Conjunto de bloques que ejecutan el mismo \textit{kernel}. Representa la totalidad del trabajo a realizar.
+            
+        \end{itemize}
+        
+        Los hilos dentro de un bloque se organizan en \textit{warps} de 32 hilos, siendo el \textit{warp} la unidad básica de ejecución física en las GPUs NVIDIA. Todos los hilos de un \textit{warp} ejecutan la misma instrucción simultáneamente siguiendo el modelo \textbf{SIMT} (\textit{Single Instruction}, \textit{Multiple Threads}).
+        
+        \subsubsection{Implicaciones del modelo SIMT}
+    
+            El modelo SIMT tiene implicaciones importantes para el rendimiento:
+    
+            \begin{itemize}
+              
+                \item \textbf{Divergencia de \textit{warps}}: Si los hilos dentro de un \textit{warp} toman diferentes caminos de ejecución debido a condiciones if-else, se produce una divergencia, lo que reduce la eficiencia puesto que los diferentes caminos deben ejecutarse secuencialmente.
+               
+                \item \textbf{Coalescencia de memoria}: Cuando los hilos de un \textit{warp} acceden a posiciones de memoria contiguas, estos accesos pueden combinarse en una única transacción de memoria, mejorando significativamente el rendimiento.
+                
+                \item \textbf{Sincronización implícita}: Los hilos dentro de un \textit{warp} están implícitamente sincronizados, lo que puede aprovecharse para optimizar ciertos algoritmos.
+                
+            \end{itemize}
+            
+            Para una matriz bidimensional, la organización de hilos sigue típicamente un patrón 2D, donde:
+            
+            \begin{align*}
+                \text{Índice global columna} &= \text{blockIdx.x} \times \text{blockDim.x} + \text{threadIdx.x}.\\
+                \text{Índice global fila} &= \text{blockIdx.y} \times \text{blockDim.y} + \text{threadIdx.y}.
+            \end{align*}
+            
+            Y la posición lineal en memoria se calcula como:
+            
+            \begin{align*}
+                \text{Índice lineal} &= \text{fila} \times N + \text{columna}.
+            \end{align*}
+            
+            Esta organización permite una correspondencia directa entre la estructura bidimensional de la matriz y la estructura bidimensional de los bloques e hilos en CUDA.
+                
+    \subsection{Cálculo teórico de la ocupancia}
+    
+        La ocupancia en CUDA se define como la relación entre el número de \textit{warps} activos y el número máximo de \textit{warps} que pueden estar activos en un SM (\textit{Streaming Multiprocessor}). Es un factor crítico para el rendimiento, ya que una alta ocupancia permite a la GPU ocultar mejor las latencias de memoria y mantener sus unidades de cómputo ocupadas logrando mejores resultados en lo referente a los tiempos de ejecución de un \textit{kernel}.
+        
+        Para poder obtener la ocupancia de nuestras configuraciones podemos calcularla siguiendo la siguiente formula:
+        
+        \begin{align*}
+            \text{Ocupancia} = \frac{\text{Bloques activos por SM} \times \text{\textit{Warps} por bloque}}{\text{\textit{Warps} máximos por SM}}.
+        \end{align*}
+        
+        Donde:
+        
+        \begin{itemize}
+        
+            \item \textbf{Bloques activos por SM:} Número de bloques que pueden ejecutarse simultáneamente en un SM.
+           
+            \item \textbf{\textit{Warps} por bloque:} $\lceil \frac{\text{Hilos por bloque}}{32} \rceil$ (el número de hilos por bloque dividido por 32, redondeado hacia arriba).
+           
+            \item \textbf{\textit{Warps} máximos por SM:} 64 en la GPU A100 (equivalente a 2048 hilos / 32 hilos por \textit{warp}).
+        
+        \end{itemize}
+        
+        \subsubsection{Factores que limitan la ocupancia}
+
+            El número de bloques activos por SM está limitado por varios factores:
+            
+            \begin{itemize}
+                
+                \item \textbf{Límite de bloques por SM:} 32 bloques en la arquitectura A100.
+               
+                \item \textbf{Límite de hilos por SM:} 2048 hilos en la arquitectura A100.
+                
+                \item \textbf{Límite de registros:} Calculado como $\frac{\text{Registros totales por SM}}{\text{Registros por hilo} \times \text{Hilos por bloque}}$.
+                
+                \item \textbf{Límite de memoria compartida:} Calculado como $\frac{\text{Memoria compartida por SM}}{\text{Memoria compartida por bloque}}$.
+            
+            \end{itemize}
+            
+            El número máximo de bloques activos por SM será el mínimo de estos cuatro límites:
+
+            \begin{align*}
+                \text{Bloques SM} = \min(\text{Lim. bloques}, \text{Lim. hilos}, \text{Lim. registros}, \text{Lim. mem. compartida})
+            \end{align*}
+            
+        \subsubsection{Impacto de la ocupancia en el rendimiento}
+            
+            La relación entre ocupancia y rendimiento no es siempre directamente proporcional. Algunas consideraciones importantes son:
+        
+            \begin{itemize}
+                
+                \item \textbf{Ocupancia saturada}: A partir de cierto punto (típicamente 50-70\%), aumentar la ocupancia puede no traducirse en mejoras significativas de rendimiento, ya que otros factores como el ancho de banda de memoria pueden convertirse en el cuello de botella principal.
+                
+                \item \textbf{Compromiso entre ocupancia y recursos por hilo}: Aumentar la ocupancia puede requerir reducir los recursos por hilo (registros, memoria compartida), lo que puede penalizar el rendimiento si el \textit{kernel} necesita estos recursos.
+        
+                \item \textbf{Latencia de memoria vs. ocupancia}: Una alta ocupancia es especialmente beneficiosa para \textit{kernels} limitados por latencia de memoria, ya que permite a la GPU alternar entre diferentes \textit{warps} mientras espera datos de memoria.
+            
+            \end{itemize}
+            
+            Estas fórmulas y consideraciones muestran que, para nuestro \textit{kernel} de inicialización de matriz, teóricamente podríamos alcanzar una ocupancia del 100\% con bloques desde 64 hasta 1024 hilos, aunque el número de bloques activos por SM varía significativamente según el tamaño del bloque.
+        
+    \subsection{Cálculo de bloques por SM}
+    
+        Para cada configuración de bloque, CUDA nos permite calcular el número máximo de bloques que pueden residir en un SM. Esto se realiza haciendo uso de la función \texttt{cudaOccupancyMaxActiveBlocksPerMultiprocessor}, que tiene en cuenta:
+
+        \begin{itemize}
+        
+            \item \textbf{Tamaño del bloque (número de hilos)}: A mayor número de hilos por bloque, menor número de bloques pueden residir simultáneamente en un SM.
+            
+            \item \textbf{Uso de registros por hilo}: Cada hilo consume registros, y el número total de registros disponibles por SM es limitado (65536 en la A100).
+            
+            \item \textbf{Uso de memoria compartida por bloque}: La memoria compartida por SM también es limitada (164 KB en la A100).
+            
+            \item \textbf{Limitaciones arquitectónicas de la GPU}: Incluyen el máximo de hilos por SM (2048) y el máximo de bloques por SM (32).
+            
+        \end{itemize}
+        
+        \subsubsection{Cálculo de bloques por SM}
+
+            Para nuestro \textit{kernel} de inicialización, podemos calcular teóricamente el número máximo de bloques por SM para diferentes tamaños de bloque:
+            
+            \begin{itemize}
+
+                \item \textbf{Para bloques de 1024 hilos (32 \textit{warps}):}
+                
+                    \begin{align*}
+                        \text{Bloques por SM (hilos)} &= \left\lfloor \frac{2048 \text{hilos/SM}}{1024 \text{hilos/bloque}} \right\rfloor = 2 \text{bloques/SM}\\
+                        \text{Bloques por SM (warps)} &= \left\lfloor \frac{64 \text{warps/SM}}{32 \text{warps/bloque}} \right\rfloor = 2 \text{bloques/SM}\\
+                        \text{Bloques por SM (límite)} &= 32 \text{bloques/SM}
+                    \end{align*}
+                    
+                    Por lo tanto, el factor limitante es el número de hilos/\textit{warps}, permitiendo 2 bloques por SM.
+            
+                \item \textbf{Para bloques de 512 hilos (16 warps):}
+    
+                    \begin{align*}
+                        \text{Bloques por SM (hilos)} &= \left\lfloor \frac{2048 \text{hilos/SM}}{512 \text{hilos/bloque}} \right\rfloor = 4 \text{bloques/SM}\\
+                        \text{Bloques por SM (warps)} &= \left\lfloor \frac{64 \text{warps/SM}}{16 \text{warps/bloque}} \right\rfloor = 4 \text{bloques/SM}\\
+                        \text{Bloques por SM (límite)} &= 32 \text{bloques/SM}
+                    \end{align*}
+                    
+                    El factor limitante sigue siendo el número de hilos/\textit{warps}, permitiendo 4 bloques por SM.
+            
+                \item \textbf{Para bloques de 256 hilos (8 \textit{warps}):}
+
+                    \begin{align*}
+                        \text{Bloques por SM (hilos)} &= \left\lfloor \frac{2048 \text{hilos/SM}}{256 \text{hilos/bloque}} \right\rfloor = 8 \text{bloques/SM}\\
+                        \text{Bloques por SM (warps)} &= \left\lfloor \frac{64 \text{warps/SM}}{8 \text{warps/bloque}} \right\rfloor = 8 \text{bloques/SM}\\
+                        \text{Bloques por SM (límite)} &= 32 \text{bloques/SM}
+                    \end{align*}
+                    
+                    El factor limitante continúa siendo el número de hilos/\textit{warps}, permitiendo 8 bloques por SM.
+                    
+                \item \textbf{Para bloques de 32 hilos (1 \textit{warp}):}
+                
+                    \begin{align*}
+                        \text{Bloques por SM (hilos)} &= \left\lfloor \frac{2048 \text{hilos/SM}}{32 \text{hilos/bloque}} \right\rfloor = 64 \text{bloques/SM}\\
+                        \text{Bloques por SM (warps)} &= \left\lfloor \frac{64 \text{warps/SM}}{1 \text{warps/bloque}} \right\rfloor = 64 \text{bloques/SM}\\
+                        \text{Bloques por SM (límite)} &= 32 \text{bloques/SM}
+                    \end{align*}
+                    
+                    En este caso, el factor limitante es el máximo de bloques por SM, que es 32.
+                    
+            \end{itemize}
+            
+            Estos cálculos explican por qué, aunque configuraciones como bloques de 32 hilos permiten teóricamente poner 64 bloques por SM, en la práctica estamos limitados a 32 bloques por SM debido a restricciones arquitectónicas, lo que limita la ocupancia al 50\% en estos casos.
+            
+            Para nuestro \textit{kernel} de inicialización, que utiliza muy pocos registros (aproximadamente 8 por hilo) y no utiliza memoria compartida, los factores limitantes son principalmente el número máximo de hilos por SM y el número máximo de bloques por SM.
+
+\newpage
+       
+\section{Configuración experimental}
+
+    \subsection{Metodología de medición}
+
+        Para medir el tiempo de ejecución del \textit{kernel} y calcular la ocupancia, se siguió la siguiente metodología rigurosa:
+    
+        \begin{enumerate}
+        
+            \item \textbf{Configuración del entorno}:
+            
+                \begin{itemize}
+                
+                    \item Se utilizó un nodo de computación con una GPU NVIDIA A100-PCIE-40GB.
+                    
+                    \item Se aseguró que no hubiera otras cargas de trabajo en la GPU durante las mediciones.
+                    
+                \end{itemize}
+            
+            \item \textbf{Inicialización de datos}:
+            
+                \begin{itemize}
+                
+                    \item Se reservó memoria para la matriz de 1 GiB en la GPU.
+                    
+                    \item Se excluyó el tiempo de inicialización de la memoria de las mediciones de rendimiento.
+                    
+                \end{itemize}
+            
+            \item \textbf{Sincronización previa}: Se utilizó \texttt{cudaDeviceSynchronize()} antes de la medición para asegurar que todas las operaciones previas se completaran.
+            
+            \item \textbf{Medición precisa del tiempo}: Se utilizaron eventos CUDA para medir el tiempo de ejecución del \textit{kernel} con precisión:
+                
+                \begin{align*}
+                    \text{Tiempo de ejecución} = \text{Tiempo final} - \text{Tiempo inicial}.
+                \end{align*}
+                
+                Los eventos CUDA proporcionan una medición de tiempo con resolución de microsegundos directamente en el \textit{hardware} de la GPU, lo que elimina la sobrecarga y variabilidad asociadas con la medición de tiempo desde el \textit{host}.
+            
+            \item \textbf{Cálculo de la ocupancia}: Para evaluar la ocupancia se utilizó la función oficial proporcionada por NVIDIA, \texttt{cudaOccupancyMaxActiveBlocksPerMultiprocessor} para calcular el número máximo de bloques activos por SM:
+                
+                \begin{align*}
+                    \text{Ocupancia} = \frac{\text{Bloques activos por SM} \times \text{\textit{Warps} por bloque}}{\text{\textit{Warps} máximos por SM}}.
+                \end{align*}
+            
+            \item \textbf{Múltiples ejecuciones}: Para cada configuración de bloque, se realizaron 10 ejecuciones independientes y se calculó:
+                
+                \begin{itemize}
+                
+                    \item El tiempo promedio de ejecución.
+                    
+                    \item La desviación estándar para evaluar la variabilidad.
+                    
+                    \item Los tiempos mínimo y máximo para identificar valores atípicos.
+                    
+                \end{itemize}
+            
+            \item \textbf{Validación de resultados}: Se implementó una comprobación para verificar que los resultados de la inicialización fueran correctos, asegurando que las optimizaciones no comprometieran la corrección.
+       
+        \end{enumerate}
+        
+        Esta metodología meticulosa permite una comparación precisa entre diferentes configuraciones de bloque, aislando el tiempo de ejecución del \textit{kernel} de otras operaciones como la transferencia de memoria entre \textit{host} y \textit{device}, y minimizando la variabilidad en las mediciones.
+    
+    \subsection{Configuraciones de bloque}
+    
+        Se probaron 33 configuraciones diferentes de bloques, variando tanto el número total de hilos por bloque como la forma del bloque (dimensiones X e Y). Las configuraciones evaluadas abarcan desde bloques de 1×1 (1 hilo) hasta bloques de 32×32 (1024 hilos), incluyendo:
+        
+        \begin{itemize}
+        
+            \item \textbf{Bloques de tamaño potencia de dos}: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024 hilos totales.
+            
+            \item \textbf{Bloques con tamaño de un \textit{warp} (32 hilos)}: 32×1, 16×2, 8×4, 4×8, 2×16, 1×32.
+            
+            \item \textbf{Bloques cuadrados}: 1×1, 2×2, 4×4, 8×8, 16×16, 32×32.
+            
+            \item \textbf{Bloques rectangulares con diferentes proporciones}: 128×8, 8×128, 256×4, 4×256, etc.
+            
+        \end{itemize}
+        
+        Esta exploración exhaustiva se diseñó para:
+        
+        \begin{itemize}
+        
+            \item Identificar la configuración óptima para maximizar el rendimiento.
+            
+            \item Analizar cómo la forma del bloque afecta al rendimiento incluso cuando el número total de hilos es constante.
+            
+            \item Estudiar el impacto de configuraciones de bloque que se alinean con múltiplos de \textit{warp} versus configuraciones que no lo hacen.
+            
+            \item Evaluar cómo diferentes dimensiones del bloque afectan a los patrones de acceso a memoria y la eficiencia global.
+            
+        \end{itemize}
+        
+        Para cada configuración, la dimensión del \textit{grid} se ajustó dinámicamente para cubrir completamente la matriz de 16384×16384 elementos:
+        
+        \begin{align*}
+            \text{Grid dimensión X} &= \left\lceil \frac{N}{\text{Block dimensión X}} \right\rceil\\
+            \text{Grid dimensión Y} &= \left\lceil \frac{M}{\text{Block dimensión Y}} \right\rceil
+        \end{align*}
+        
+        Esta fórmula asegura que haya suficientes bloques para cubrir toda la matriz, incluso cuando las dimensiones de la matriz no son múltiplos exactos de las dimensiones del bloque. El uso de la función techo garantiza que se asignen suficientes bloques incluso cuando hay un residuo.
+        
+        Esta exhaustiva exploración del espacio de configuraciones permite identificar los patrones de rendimiento y las configuraciones óptimas para este tipo de \textit{kernel} en la arquitectura A100.
+
+\newpage
+
+\section{Resultados y análisis}
+
+    Los resultados obtenidos en la GPU NVIDIA A100-PCIE-40GB se muestran en la siguiente tabla:
+
+    \begin{table}[H]
+        \centering
+        \begin{adjustbox}{width=\textwidth, keepaspectratio}
+            \begin{tabular}{ccccccc}
+                \toprule
+                \textbf{Tam. bloque} & \textbf{Hilos/bloque} & \textbf{Tam. grid} & \textbf{Tiempo (ms)} & \textbf{Bloques/SM} & \textbf{Ocupancia} \\
+                \midrule
+                32 $\times$ 1   & 32   & 512 $\times$ 16384  & 6.226  & 32  & 0.50 \\
+                32 $\times$ 32  & 1024 & 512 $\times$ 512    & 0.699  & 2   & 1.00 \\
+                128 $\times$ 8  & 1024 & 128 $\times$ 2048   & 0.699  & 2   & 1.00 \\
+                256 $\times$ 4  & 1024 & 64 $\times$ 4096    & 0.699  & 2   & 1.00 \\
+                64 $\times$ 16  & 1024 & 256 $\times$ 1024   & 0.700  & 2   & 1.00 \\
+                16 $\times$ 32  & 512  & 1024 $\times$ 512   & 0.697  & 4   & 1.00 \\
+                8 $\times$ 32   & 256  & 2048 $\times$ 512   & 0.786  & 8   & 1.00 \\
+                16 $\times$ 16  & 256  & 1024 $\times$ 1024  & 0.786  & 8   & 1.00 \\
+                32 $\times$ 8   & 256  & 512 $\times$ 2048   & 0.786  & 8   & 1.00 \\
+                8 $\times$ 16   & 128  & 2048 $\times$ 1024  & 1.563  & 16  & 1.00 \\
+                16 $\times$ 8   & 128  & 1024 $\times$ 2048  & 1.562  & 16  & 1.00 \\
+                4 $\times$ 32   & 128  & 4096 $\times$ 512   & 1.563  & 16  & 1.00 \\
+                32 $\times$ 4   & 128  & 512 $\times$ 4096   & 1.562  & 16  & 1.00 \\
+                8 $\times$ 8    & 64   & 2048 $\times$ 2048  & 3.115  & 32  & 1.00 \\
+                16 $\times$ 4   & 64   & 1024 $\times$ 4096  & 3.116  & 32  & 1.00 \\
+                4 $\times$ 16   & 64   & 4096 $\times$ 1024  & 3.116  & 32  & 1.00 \\
+                2 $\times$ 32   & 64   & 8192 $\times$ 512   & 3.118  & 32  & 1.00 \\
+                32 $\times$ 2   & 64   & 512 $\times$ 8192   & 3.116  & 32  & 1.00 \\
+                4 $\times$ 8    & 32   & 4096 $\times$ 2048  & 6.224  & 32  & 0.50 \\
+                8 $\times$ 4    & 32   & 2048 $\times$ 4096  & 6.223  & 32  & 0.50 \\
+                2 $\times$ 16   & 32   & 8192 $\times$ 1024  & 6.224  & 32  & 0.50 \\
+                16 $\times$ 2   & 32   & 1024 $\times$ 8192  & 6.223  & 32  & 0.50 \\
+                2 $\times$ 8    & 16   & 8192 $\times$ 2048  & 12.438 & 32  & 0.25 \\
+                8 $\times$ 2    & 16   & 2048 $\times$ 8192  & 12.436 & 32  & 0.25 \\
+                4 $\times$ 4    & 16   & 4096 $\times$ 4096  & 12.438 & 32  & 0.25 \\
+                2 $\times$ 4    & 8    & 8192 $\times$ 4096  & 24.869 & 32  & 0.12 \\
+                4 $\times$ 2    & 8    & 4096 $\times$ 8192  & 24.867 & 32  & 0.12 \\
+                1 $\times$ 8    & 8    & 16384 $\times$ 2048 & 24.869 & 32  & 0.12 \\
+                8 $\times$ 1    & 8    & 2048 $\times$ 16384 & 24.867 & 32  & 0.12 \\
+                1 $\times$ 4    & 4    & 16384 $\times$ 4096 & 49.729 & 32  & 0.06 \\
+                4 $\times$ 1    & 4    & 4096 $\times$ 16384 & 49.718 & 32  & 0.06 \\
+                2 $\times$ 2    & 4    & 8192 $\times$ 8192  & 49.723 & 32  & 0.06 \\
+                1 $\times$ 2    & 2    & 16384 $\times$ 8192 & 99.463 & 32  & 0.03 \\
+                2 $\times$ 1    & 2    & 8192 $\times$ 16384 & 99.442 & 32  & 0.03 \\
+                1 $\times$ 1    & 1    & 16384 $\times$ 16384 & 198.899 & 32 & 0.02 \\
+                \bottomrule
+            \end{tabular}
+        \end{adjustbox}
+        \caption{Rendimiento y ocupancia para diferentes configuraciones de bloque.}
+        \label{tab:resultados}
+    \end{table}
+    
+    \subsection{Análisis de Resultados}
+    
+        Los resultados obtenidos en la GPU NVIDIA A100-PCIE-40GB revelan patrones significativos en cuanto al rendimiento y la ocupancia del \textit{kernel} para diferentes configuraciones de bloques. A continuación, se presenta un análisis detallado de estos resultados:
+
+        \subsubsection{Relación tamaño de bloque y rendimiento}
+    
+            Se observa una correlación clara entre el tamaño del bloque y el tiempo de ejecución del \textit{kernel}. Específicamente:
+        
+            \begin{itemize}
+              
+                \item Las configuraciones con bloques de 256-1024 hilos presentan los mejores tiempos de ejecución, con valores entre 0.697 y 0.786 milisegundos.
+                
+                \item Los bloques de 16×32 (512 hilos) ofrecen el mejor rendimiento general, con un tiempo de ejecución de 0.697 ms.
+                
+                \item A medida que disminuye el número de hilos por bloque por debajo de 256, el rendimiento se degrada significativamente, aumentando los tiempos de ejecución de forma inversamente proporcional.
+                
+                \item La configuración más pequeña (1×1) muestra el peor rendimiento, con un tiempo de ejecución de 198.899 ms, aproximadamente 285 veces más lento que la configuración óptima.
+            
+            \end{itemize}
+
+        \subsubsection{Análisis de la ocupancia}
+
+            La ocupancia, definida como la proporción de \textit{warps} activos respecto al máximo posible, presenta comportamientos interesantes:
+            
+            \begin{itemize}
+               
+                \item Todas las configuraciones con bloques de 64 a 1024 hilos logran una ocupancia teórica del 100\%, aunque con diferencias significativas en rendimiento.
+                
+                \item Para bloques con 32 hilos (equivalente a 1 \textit{warp}), la ocupancia cae al 50\%, limitada por el número máximo de bloques por SM.
+                
+                \item Las configuraciones con bloques menores a 32 hilos muestran una ocupancia progresivamente menor (25\%, 12\%, 6\%, 3\% y 2\%), correlacionada directamente con la degradación del rendimiento.
+           
+            \end{itemize}
+
+        \subsubsection{Efecto de la forma del bloque}
+
+            Un aspecto notable es cómo la forma del bloque (dimensiones x e y) afecta al rendimiento incluso cuando el número total de hilos se mantiene constante:
+            
+            \begin{itemize}
+                
+                \item Para bloques de 1024 hilos, las configuraciones 32×32, 128×8, 256×4 y 64×16 muestran tiempos casi idénticos (aproximadamente 0.699 ms).
+                
+                \item Para bloques de 256 hilos, las configuraciones 8×32, 16×16 y 32×8 también presentan rendimientos similares (0.786 ms).
+                
+                \item Esta equivalencia sugiere que, para este \textit{kernel} específico, la forma del bloque tiene un impacto mínimo en el rendimiento siempre que se mantenga el mismo número total de hilos.
+          
+            \end{itemize}
+
+        \subsubsection{Limitaciones arquitectónicas}
+            
+            Los resultados también revelan las limitaciones arquitectónicas de la GPU A100:
+            
+            \begin{itemize}
+            
+                \item El número máximo de bloques por SM (32) se alcanza con bloques de 64 hilos o menos.
+                
+                \item Con bloques de 128 hilos, se pueden programar 16 bloques por SM, manteniendo la ocupancia al 100\%.
+                
+                \item Con bloques de 256 hilos, se obtienen 8 bloques por SM, también con ocupancia del 100\%.
+                
+                \item Con bloques de 512 hilos, se logran 4 bloques por SM, con ocupancia del 100\%.
+                
+                \item Con bloques de 1024 hilos, solo se pueden programar 2 bloques por SM, pero siguen proporcionando una ocupancia del 100\%.
+           
+            \end{itemize}
+
+        \subsubsection{Eficiencia computacional}
+    
+            Analizando la relación entre ocupancia y rendimiento:
+            
+            \begin{itemize}
+              
+                \item A pesar de que muchas configuraciones logran una ocupancia teórica del 100\%, el rendimiento varía significativamente.
+                
+                \item Los bloques de 512-1024 hilos muestran el mejor rendimiento, sugiriendo un equilibrio óptimo entre:
+                
+                \begin{itemize}
+                
+                    \item Número de bloques que se pueden programar por SM.
+                    
+                    \item Eficiencia en la utilización de los recursos de la GPU.
+                    
+                    \item Sobrecarga de gestión de bloques.
+                
+                \end{itemize}
+              
+                \item Las configuraciones con bloques más pequeños, aunque permiten más bloques concurrentes, sufren una mayor sobrecarga de gestión, lo que explica su menor rendimiento.
+
+            \end{itemize}
+    
+        \subsubsection{Patrones de acceso a memoria}
+    
+            La naturaleza del \textit{kernel} de inicialización de matriz implica patrones de acceso a memoria que también influyen en el rendimiento:
+            
+            \begin{itemize}
+            
+                \item Los accesos a memoria son perfectamente coalescentes cuando los hilos adyacentes dentro de un \textit{warp} acceden a posiciones de memoria contiguas.
+                
+                \item Las configuraciones que favorecen la coalescencia de memoria (como aquellas con dimensión x múltiplo de 32) no muestran ventajas significativas en este caso, probablemente porque el \textit{kernel} está limitado por la latencia de escritura en memoria global más que por el ancho de banda.
+           
+            \end{itemize}
+    
+    \subsection{Conclusiones}
+
+        A partir del análisis de los resultados obtenidos, podemos extraer las siguientes conclusiones:
+
+        \begin{enumerate}
+         
+            \item \textbf{Configuración óptima}: Los bloques de 512 hilos (específicamente 16×32) ofrecen el mejor rendimiento para este \textit{kernel} de inicialización de matriz en la GPU A100, con un tiempo de ejecución de 0.697 ms y una ocupancia del 100\%.
+            
+            \item \textbf{Equilibrio en el tamaño de bloque}: Existe un tamaño de bloque óptimo que equilibra la ocupancia, el número de bloques por SM y la sobrecarga de gestión. Los bloques demasiado grandes limitan el número de bloques concurrentes, mientras que los bloques demasiado pequeños aumentan la sobrecarga de gestión.
+            
+            \item \textbf{Importancia de la ocupancia}: Aunque la ocupancia máxima es necesaria para un buen rendimiento, no es suficiente. Muchas configuraciones logran una ocupancia del 100\% pero muestran rendimientos significativamente diferentes.
+            
+            \item \textbf{Efecto de la forma del bloque}: Para este \textit{kernel} específico, la forma del bloque tiene un impacto mínimo en el rendimiento cuando se mantiene constante el número total de hilos, lo que sugiere que el patrón de acceso a memoria es regular y no favorece una dimensionalidad específica.
+            
+            \item \textbf{Escalabilidad}: El rendimiento escala inversamente con el número de hilos por bloque por debajo de un umbral crítico (256 hilos), lo que indica que los bloques más pequeños no aprovechan eficientemente los recursos de la GPU.
+            
+            \item \textbf{Limitaciones arquitectónicas}: Los resultados reflejan claramente las limitaciones de la arquitectura A100, con un máximo de 2048 hilos por SM y 32 bloques por SM. Estas restricciones determinan directamente cómo se comporta la ocupancia para diferentes configuraciones de bloque.
+            
+            \item \textbf{Implicaciones para el diseño de \textit{kernels}}: Al diseñar kernels CUDA para operaciones similares, se debe priorizar el uso de bloques con 256-1024 hilos para maximizar el rendimiento, incluso cuando se trabaja con matrices grandes como en este caso (16384×16384).
+      
+        \end{enumerate}
+        
+        Este análisis demuestra la importancia de seleccionar cuidadosamente la configuración de ejecución para \textit{kernels} CUDA, ya que incluso para operaciones aparentemente simples como la inicialización de una matriz, el rendimiento puede variar en órdenes de magnitud dependiendo de cómo se distribuya el trabajo entre los hilos y bloques.
+        
+        La GPU A100 muestra un comportamiento óptimo cuando se utiliza con bloques de tamaño intermedio (512 hilos), lo que probablemente refleja un equilibrio entre la utilización de recursos y la sobrecarga de gestión de bloques. Este conocimiento puede aplicarse al diseño de otros \textit{kernels} para maximizar el rendimiento en esta arquitectura específica.
