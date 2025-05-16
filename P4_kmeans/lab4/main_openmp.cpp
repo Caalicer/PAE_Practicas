@@ -125,7 +125,8 @@ baseType* init_centroids(const HSI& data, int clusters) {
 
 	}
 
-	#pragma omp parallel for
+	// Removed since obtained speedup is not worth
+	// #pragma omp parallel for
 	for (int i = 0; i < clusters; i++) {
 
 		int pos = indices[i];
@@ -146,7 +147,8 @@ baseType* init_centroids(const HSI& data, int clusters) {
 
 void get_yi2(baseType *yi2, baseType *centroids, int bands, int clusters) {
 
-	#pragma omp parallel for
+	// Removed since obtained speedup is not worth
+	// #pragma omp parallel for
 	for (int i = 0; i < clusters; i++) {
 
 		yi2[i] = 0;
@@ -345,7 +347,8 @@ u_char* compute_kmeans(const HSI& data, int clusters, int iterations, ExecutionD
 
 		double update_start_2 = get_time();
 
-		#pragma omp parallel for
+		// Removed since obtained speedup is not worth
+		// #pragma omp parallel for
 		for (int i = 0; i < clusters; i++) {
 
 			if (count[i] == 0) {
