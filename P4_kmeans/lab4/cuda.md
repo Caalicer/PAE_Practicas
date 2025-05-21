@@ -1,0 +1,21 @@
+# Consideraciones en la implementación del algoritmo K-Means en CUDA
+
+- Kernel CUDA que:
+    - cada hilo procesar 1 pixel completo
+    - Calculando sus distancias a todos los centroides 
+        - determinando su asignación
+- Minimizar latencia:
+    - centroides cargados en memoria compartida
+- Actualización centroides:
+    - 1 enfoque:
+        - Operaciones atómicas para acumular directamente en las estructuras temporales
+    - 2 enfoque:
+        - ordenar pixeles según cluster asignado y realizar reducciones por segmentos
+- Acceso a memoria
+    - Reorganizar datos -> coalescencia en el acceso a memoria global
+    - Minimizar transferencia host -> dispositivo
+- Reduccion de precisión a float:
+    - Mayor eficiencia en los calculos en algunas gpus
+- Calculo del error cuadratico entre iteraciones:
+    - técnicas de reduccion paralela
+        - establecer criterio de convergencia basado en el cambio relativo del error.

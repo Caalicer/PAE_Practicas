@@ -1,10 +1,10 @@
 #include "headerImage.h"
+#include <cstdlib>
 #include <cuda_runtime.h>
-#include <curand_kernel.h>
 
 #define DEFAULT_CLUSTERS 10
 #define DEFAULT_MAX_ITERATIONS 500
-#define BLOCK_SIZE 256
+#define DEFAULT_BLOCK_SIZE 256
 
 /**
  * @brief Macro para verificar errores de CUDA.
@@ -34,25 +34,85 @@
  * Esta estructura contiene métricas de tiempo y estadísticas sobre el proceso
  * de ejecución del algoritmo k-means, incluyendo tiempos de inicialización,
  * transferencia de datos, ejecución y cálculo de errores.
+ *
+ * @var total Tiempo total de ejecución del programa.
+ * @var overhead Tiempo de llamada a funciones de medición.
+ * @var read Tiempo de lectura de la imagen.
+ * @var standardize Tiempo de normalización estadística.
+ * @var save Tiempo de guardado de la imagen PGM.
+ * @var free Tiempo de liberación de la memoria.
+ * @var kmeans_total Tiempo consumido por el núcleo del algoritmo.
+ * @var kmeans_malloc Tiempo dedicado a la reserva de memoria.
+ * @var kmeans_init Tiempo de la inicialización de centroides.
+ * @var kmeans_yi2_init Tiempo del cálculo inicial de yi2.
+ * @var kmeans_yi2 Tiempo de cálculo de yi2 acumulado.
+ * @var kmeans_distance Tiempo de cálculo de distancias.
+ * @var kmeans_update_1 Tiempo de acumulación de valores espectrales.
+ * @var kmeans_update_2 Tiempo de normalización de valores acumulados.
+ * @var kmeans_free Tiempo de liberación de estructuras.
+ * @var kmeans_transfer Tiempo de transferencia de datos a la GPU.
+ * @var kmeans_execution Tiempo de ejecución principal del algoritmo.
+ * @var kmeans_error Error total calculado al final del algoritmo.
+ * @var clusters Número de clusters utilizados en k-means.
+ * @var iterations Número de iteraciones realizadas.
+ * @var block_size Tamaño del bloque utilizado en CUDA.
+ * @var image_size Tamaño de la imagen en bytes.
+ * @var maxBlocksPerSM_distance Máximo número de bloques activos por
+ *                              multiprocesador para el kernel de cálculo de
+ *                              distancias.
+ * @var maxBlocksPerSM_sum Máximo número de bloques activos por multiprocesador
+ *                         para el kernel de suma de clusters.
+ * @var maxBlocksPerSM_update Máximo número de bloques activos por
+ *                            multiprocesador para el kernel de actualización de
+ *                            centroides.
+ * @var maxBlocksPerSM_yi2 Máximo número de bloques activos por multiprocesador
+ *                         para el kernel de cálculo de yi2.
+ * @var maxBlocksPerSM_error Máximo número de bloques activos por
+ *                           multiprocesador para el kernel de cálculo de error.
+ * @var occupancy_distance Ocupación del kernel de cálculo de distancias.
+ * @var occupancy_sum Ocupación del kernel de suma de clusters.
+ * @var occupancy_update Ocupación del kernel de actualización de centroides.
+ * @var occupancy_yi2 Ocupación del kernel de cálculo de yi2.
+ * @var occupancy_error Ocupación del kernel de cálculo de error.
  */
 typedef struct {
-    double total;            /**< Tiempo total de ejecución del programa. */
-    double overhead;         /**< Tiempo de overhead al llamar a get_time(). */
-    double read;             /**< Tiempo de lectura los datos de entrada. */
-    double standardize;      /**< Tiempo de estandarización los datos. */
-    double kmeans_total;     /**< Tiempo total dedicado al algoritmo k-means. */
-    double kmeans_malloc;    /**< Tiempo dedicado a la reserva de memoria. */
-    double kmeans_init;      /**< Tiempo de la inicialización de centroides. */
-    double kmeans_transfer;  /**< Tiempo de transferencia de datos a la GPU. */
-    double kmeans_execution; /**< Tiempo de ejecución principal del algoritmo.*/
-    double kmeans_error; /**< Error total calculado al final del algoritmo. */
-    int clusters;        /**< Número de clusters utilizados en k-means. */
-    int iterations;      /**< Número de iteraciones realizadas. */
-    long image_size;     /**< Tamaño de la imagen en bytes. */
+    double total;
+    double overhead;
+    double read;
+    double standardize;
+    double save;
+    double free;
+    double kmeans_total;
+    double kmeans_malloc;
+    double kmeans_init;
+    double kmeans_yi2_init;
+    double kmeans_yi2;
+    double kmeans_distance;
+    double kmeans_update_1;
+    double kmeans_update_2;
+    double kmeans_free;
+    double kmeans_transfer;
+    double kmeans_execution;
+    double kmeans_error;
+    int clusters;
+    int iterations;
+    int block_size;
+    long image_size;
+    int maxBlocksPerSM_distance;
+    int maxBlocksPerSM_sum;
+    int maxBlocksPerSM_update;
+    int maxBlocksPerSM_yi2;
+    int maxBlocksPerSM_error;
+    float occupancy_distance;
+    float occupancy_sum;
+    float occupancy_update;
+    float occupancy_yi2;
+    float occupancy_error;
 } ExecutionData;
 
 /**
- * @brief Obtener el tiempo actual en segundos con precisión de nanosegundos.
+ * @brief Obtener el tiempo actual en segundos con precisión de
+ * nanosegundos.
  *
  * Utiliza `clock_gettime` para obtener el tiempo actual en segundos.
  *
@@ -65,21 +125,13 @@ double get_time() {
 }
 
 /**
- * @brief Kernel CUDA para inicializar los centroides aleatoriamente.
- *
- * Este kernel selecciona píxeles aleatorios de los datos de entrada como
- * centroides iniciales para el algoritmo k-means.
+ * @brief Inicializa los centroides aleatoriamente..
  *
  * @param data Datos de entrada (píxeles).
- * @param centroids Array donde se almacenarán los centroides iniciales.
- * @param bands Número de bandas espectrales.
  * @param clusters Número de clusters.
- * @param slice Número de píxeles en los datos.
- * @param seed Semilla para el generador de números aleatorios.
+ * @return baseType* Array de centroides iniciales.
  */
-__global__ void init_centroids_kernel(baseType* data, baseType* centroids,
-                                      int bands, int clusters, int slice,
-                                      unsigned int seed);
+baseType* init_centroids(const HSI& data, int clusters);
 
 /**
  * @brief Kernel CUDA para calcular la norma al cuadrado de cada centroide.
@@ -159,23 +211,13 @@ __global__ void update_centroids_kernel(baseType* centroids,
  * @param yi2 Array con las normas al cuadrado de los centroides.
  * @param block_errors Array para almacenar los errores parciales por bloque.
  * @param bands Número de bandas espectrales.
+ * @param clusters Número de clusters
  * @param slice Número de píxeles en los datos.
  */
 __global__ void compute_error_kernel(baseType* data, u_char* clustering,
                                      baseType* centroids, baseType* yi2,
-                                     double* block_errors, int bands,
-                                     int slice);
-
-/**
- * @brief Función para calcular el error total en la CPU.
- *
- * Suma los errores parciales calculados por los bloques en la GPU.
- *
- * @param block_errors Array con los errores parciales.
- * @param num_blocks Número de bloques utilizados.
- * @return Error total como un valor de tipo `double`.
- */
-double calculate_error_from_blocks(double* block_errors, int num_blocks);
+                                     float* total_error, int bands,
+                                     int clusters, int slice);
 
 /**
  * @brief Implementación del algoritmo k-means utilizando CUDA.
@@ -205,13 +247,16 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
  */
 int main(int argc, char* argv[]) {
 
+    srand(0);
+
     if (argc < 2) {
-        printf("Usage: %s hyperspectral.raw [num. clusters] [num. "
+        printf("Usage: %s hyperspectral.raw [block size] [num. clusters] [num. "
                "iterations]\n",
                argv[0]);
         printf(" * hyperspectral.raw - The hyperspectral data in pixel "
                "vector "
                "format\n");
+        printf(" * block size - (default %d)\n", DEFAULT_BLOCK_SIZE);
         printf(" * number of clusters - (default %d)\n", DEFAULT_CLUSTERS);
         printf(" * number of iterations - (default %d)\n",
                DEFAULT_MAX_ITERATIONS);
@@ -219,13 +264,21 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    const char* image_path = argv[1];
+    char* image_path = argv[1];
 
     ExecutionData execution_data = {0};
 
-    execution_data.clusters = (argc < 3) ? DEFAULT_CLUSTERS : atoi(argv[2]);
+    execution_data.block_size = (argc < 3) ? DEFAULT_BLOCK_SIZE : atoi(argv[2]);
+
+    execution_data.clusters = (argc < 4) ? DEFAULT_CLUSTERS : atoi(argv[3]);
+
     execution_data.iterations =
-        (argc < 4) ? DEFAULT_MAX_ITERATIONS : atoi(argv[3]);
+        (argc < 5) ? DEFAULT_MAX_ITERATIONS : atoi(argv[4]);
+
+    if (execution_data.block_size <= 0) {
+        printf("Error: Block size must be positive\n");
+        return EXIT_FAILURE;
+    }
 
     if (execution_data.clusters <= 0) {
         printf("Error: Number of clusters must be positive\n");
@@ -238,20 +291,14 @@ int main(int argc, char* argv[]) {
     }
 
     double total_start = get_time();
-
     double overhead_start = get_time();
     double overhead_end = get_time();
-
     execution_data.overhead = overhead_end - overhead_start;
 
     double read_start = get_time();
-
     HSI data;
-
     read_dataset_raw(data, image_path);
-
     execution_data.read = get_time() - read_start - execution_data.overhead;
-
     execution_data.image_size = data.slice * data.bands * sizeof(baseType);
 
 #ifdef VERBOSE
@@ -278,7 +325,20 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (savePGM("cuda_result.pgm", clustering, data.cols, data.rows) != 0) {
+#ifdef SAVE
+    char* image_name = strrchr(image_path, '/');
+    image_name++;
+
+    char output_path[256];
+
+    snprintf(output_path, sizeof(output_path), "./outs/result_%s_%d_%d_%d.pgm",
+             image_name, execution_data.clusters, execution_data.iterations,
+             execution_data.block_size);
+
+    double save_start = get_time();
+
+    if (savePGM(output_path, clustering, data.cols, data.rows) != 0) {
+
         printf("Error: Unable to save result image\n");
 
         free(clustering);
@@ -287,8 +347,17 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    execution_data.save = get_time() - save_start - execution_data.overhead;
+#endif
+
+#ifdef VERBOSE
+    printf("Results saved in %.6f seconds\n", execution_data.save);
+#endif
+
+    double free_start = get_time();
     data.free_memory();
     free(clustering);
+    execution_data.free = get_time() - free_start - execution_data.overhead;
 
     execution_data.total = get_time() - total_start;
 
@@ -296,35 +365,53 @@ int main(int argc, char* argv[]) {
     printf("Total execution time: %.6f seconds\n", execution_data.total);
 #endif
 
-    printf("\nPAE,%s,%d,%ld,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%."
-           "6f,PAE\n",
-           image_path, execution_data.clusters, execution_data.image_size,
-           execution_data.iterations, execution_data.overhead,
-           execution_data.read, execution_data.standardize,
-           execution_data.kmeans_malloc, execution_data.kmeans_init,
-           execution_data.kmeans_transfer, execution_data.kmeans_execution,
-           execution_data.kmeans_error, execution_data.total);
+    printf(
+        "\nPAE,%s,%d,%d,%ld,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%."
+        "6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,%d,%d,%d,%d,%d,%.6f,"
+        "%.6f,%.6f,%.6f,%.6f,PAE\n",
+        image_path, execution_data.block_size, execution_data.clusters,
+        execution_data.image_size, execution_data.overhead, execution_data.read,
+        execution_data.standardize, execution_data.kmeans_malloc,
+        execution_data.kmeans_init, execution_data.kmeans_yi2_init,
+        execution_data.kmeans_yi2, execution_data.kmeans_distance,
+        execution_data.kmeans_update_1, execution_data.kmeans_update_2,
+        execution_data.kmeans_free, execution_data.kmeans_transfer,
+        execution_data.kmeans_execution, execution_data.kmeans_total,
+        execution_data.kmeans_error, execution_data.save, execution_data.free,
+        execution_data.total, execution_data.iterations,
+        execution_data.maxBlocksPerSM_distance,
+        execution_data.maxBlocksPerSM_sum, execution_data.maxBlocksPerSM_update,
+        execution_data.maxBlocksPerSM_yi2, execution_data.maxBlocksPerSM_error,
+        execution_data.occupancy_distance, execution_data.occupancy_sum,
+        execution_data.occupancy_update, execution_data.occupancy_yi2,
+        execution_data.occupancy_error);
 
     return EXIT_SUCCESS;
 }
 
-// Kernel CUDA para inicializar los centroides aleatoriamente.
-__global__ void init_centroids_kernel(baseType* data, baseType* centroids,
-                                      int bands, int clusters, int slice,
-                                      unsigned int seed) {
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+// Inicializar los centroides aleatoriamente.
+baseType* init_centroids(const HSI& data, int clusters) {
 
-    if (tid < clusters) {
-        curandState state;
-        curand_init(seed, tid, 0, &state);
+    baseType* centroids =
+        (baseType*)malloc(clusters * data.bands * sizeof(baseType));
 
-        // Seleccionar un pixel aleatorio como centroide
-        int pos = curand(&state) % slice;
+    if (!centroids) {
 
-        for (int j = 0; j < bands; j++) {
-            centroids[tid * bands + j] = data[pos * bands + j];
+        printf("Error: Unable to alloc memory | Init centroids \n");
+        return NULL;
+    }
+
+    for (int i = 0; i < clusters; i++) {
+
+        int pos = rand() % data.slice;
+
+        for (int j = 0; j < data.bands; j++) {
+
+            centroids[i * data.bands + j] = data.x[pos * data.bands + j];
         }
     }
+
+    return centroids;
 }
 
 // Kernel CUDA para calcular la norma al cuadrado de cada centroide.
@@ -345,7 +432,28 @@ __global__ void get_yi2_kernel(baseType* yi2, baseType* centroids, int bands,
 __global__ void assign_clusters_kernel(baseType* data, baseType* centroids,
                                        baseType* yi2, u_char* clustering,
                                        int bands, int clusters, int slice) {
+
+    extern __shared__ baseType shared_mem[]; // Memoria compartida dinámica
+
+    // Particionar la memoria compartida
+    baseType* shared_centroids = shared_mem; // [clusters * bands]
+    baseType* shared_yi2 =
+        (baseType*)&shared_mem[clusters * bands]; // [clusters]
+
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int local_tid = threadIdx.x;
+
+    // Cargar centroides en memoria compartida de forma colaborativa
+    for (int i = local_tid; i < clusters * bands; i += blockDim.x) {
+        shared_centroids[i] = centroids[i];
+    }
+
+    // Cargar yi2 en memoria compartida
+    if (local_tid < clusters) {
+        shared_yi2[local_tid] = yi2[local_tid];
+    }
+
+    __syncthreads();
 
     if (tid < slice) {
         baseType min_dist = INFINITY;
@@ -356,11 +464,11 @@ __global__ void assign_clusters_kernel(baseType* data, baseType* centroids,
             baseType xi2 = 0;
 
             for (int b = 0; b < bands; b++) {
-                xiyi += data[tid * bands + b] * centroids[j * bands + b];
+                xiyi += data[tid * bands + b] * shared_centroids[j * bands + b];
                 xi2 += data[tid * bands + b] * data[tid * bands + b];
             }
 
-            baseType dist = sqrt(xi2 - 2 * xiyi + yi2[j]);
+            baseType dist = sqrt(xi2 - 2 * xiyi + shared_yi2[j]);
 
             if (dist < min_dist) {
                 min_dist = dist;
@@ -376,33 +484,48 @@ __global__ void assign_clusters_kernel(baseType* data, baseType* centroids,
 __global__ void sum_clusters_kernel(baseType* data, u_char* clustering,
                                     baseType* temp_centroids, int* count,
                                     int bands, int clusters, int slice) {
-    extern __shared__ int shared_counts[];
+    // Definir memoria compartida para acumular valores por bloque
+    extern __shared__ char shared[];
+    baseType* shared_sums = (baseType*)shared;
+    int* shared_counts = (int*)(shared + sizeof(baseType) * clusters * bands);
 
+    // Inicializar memoria compartida
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int local_tid = threadIdx.x;
 
     // Inicializar memoria compartida
+    for (int i = local_tid; i < clusters * bands; i += blockDim.x) {
+        shared_sums[i] = 0;
+    }
+
     for (int i = local_tid; i < clusters; i += blockDim.x) {
         shared_counts[i] = 0;
     }
+
     __syncthreads();
 
+    // Acumular en memoria compartida
     if (tid < slice) {
         int cluster_idx = clustering[tid];
         atomicAdd(&shared_counts[cluster_idx], 1);
 
         for (int j = 0; j < bands; j++) {
-            atomicAdd(&temp_centroids[cluster_idx * bands + j],
+            atomicAdd(&shared_sums[cluster_idx * bands + j],
                       data[tid * bands + j]);
         }
     }
+
     __syncthreads();
 
-    // Posible mejora con menos accesos a memoria global
-    // Acumular contadores de la memoria compartida a la global
+    // Acumular de memoria compartida a global
     for (int i = local_tid; i < clusters; i += blockDim.x) {
         if (shared_counts[i] > 0) {
             atomicAdd(&count[i], shared_counts[i]);
+        }
+
+        for (int j = 0; j < bands; j++) {
+            atomicAdd(&temp_centroids[i * bands + j],
+                      shared_sums[i * bands + j]);
         }
     }
 }
@@ -415,7 +538,6 @@ __global__ void update_centroids_kernel(baseType* centroids,
 
     if (tid < clusters * bands) {
         int cluster_idx = tid / bands;
-        int band_idx = tid % bands;
 
         if (count[cluster_idx] > 0) {
             centroids[tid] = temp_centroids[tid] / count[cluster_idx];
@@ -426,13 +548,23 @@ __global__ void update_centroids_kernel(baseType* centroids,
 // Kernel CUDA para calcular el error total.
 __global__ void compute_error_kernel(baseType* data, u_char* clustering,
                                      baseType* centroids, baseType* yi2,
-                                     double* block_errors, int bands,
-                                     int slice) {
-    extern __shared__ double shared_errors[];
+                                     float* total_error, int bands,
+                                     int clusters, int slice) {
+    extern __shared__ float shared_err[]; // Memoria compartida dinámica
+    float* shared_centroids = shared_err; // Para almacenar errores
+    baseType* shared_errors =
+        (baseType*)&shared_err[clusters * bands]; // Centroides
 
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int local_tid = threadIdx.x;
 
+    // Cargar centroides en memoria compartida de forma colaborativa
+    for (int i = local_tid; i < clusters * bands; i += blockDim.x) {
+        shared_centroids[i] = centroids[i];
+    }
+    __syncthreads();
+
+    // Inicializar errores en memoria compartida
     shared_errors[local_tid] = 0.0;
 
     if (tid < slice) {
@@ -442,7 +574,8 @@ __global__ void compute_error_kernel(baseType* data, u_char* clustering,
         baseType xi2 = 0;
 
         for (int j = 0; j < bands; j++) {
-            xiyi += data[tid * bands + j] * centroids[cluster_idx * bands + j];
+            xiyi += data[tid * bands + j] *
+                    shared_centroids[cluster_idx * bands + j];
             xi2 += data[tid * bands + j] * data[tid * bands + j];
         }
 
@@ -460,24 +593,14 @@ __global__ void compute_error_kernel(baseType* data, u_char* clustering,
 
     // El primer hilo de cada bloque escribe el resultado
     if (local_tid == 0) {
-        block_errors[blockIdx.x] = shared_errors[0];
+        atomicAdd(total_error, shared_errors[0]);
     }
-}
-
-// Función para calcular el error total en la CPU./
-double calculate_error_from_blocks(double* block_errors, int num_blocks) {
-    double total_error = 0.0;
-
-    for (int i = 0; i < num_blocks; i++) {
-        total_error += block_errors[i];
-    }
-
-    return total_error;
 }
 
 // Implementación del algoritmo k-means utilizando CUDA.
 u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
                             ExecutionData* execution_data) {
+
     if (clusters <= 0 || clusters > data.slice) {
         printf("Error: Invalid clusters number\n");
         return NULL;
@@ -489,6 +612,16 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
     }
 
     double kmeans_start = get_time();
+    double init_start = get_time();
+
+    baseType* centroids = init_centroids(data, clusters);
+
+    execution_data->kmeans_init = get_time() - init_start;
+
+#ifdef VERBOSE
+    printf("Centroids initialized on CPU in %.6f seconds\n",
+           execution_data->kmeans_init);
+#endif
 
     // Variables en host
     baseType* d_data = NULL;
@@ -497,35 +630,29 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
     baseType* d_yi2 = NULL;
     int* d_count = NULL;
     u_char* d_clustering = NULL;
-    double* d_block_errors = NULL;
-
+    float* d_total_error = NULL;
     u_char* h_clustering = NULL;
-    double* h_block_errors = NULL;
 
     double malloc_start = get_time();
 
     // Reserva de memoria en el host para el resultado final
     h_clustering = (u_char*)malloc(data.slice * sizeof(u_char));
     if (!h_clustering) {
-        printf("Error: Unable to allocate memory for clustering result "
-               "on host\n");
-        return NULL;
+        printf("Error: Unable to allocate memory | clustering \n");
+        exit(EXIT_FAILURE);
     }
 
     // Calcular dimensiones de grid y bloques
-    int num_blocks_pixels = (data.slice + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    int num_blocks_clusters = (clusters + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int num_blocks_pixels = (data.slice + execution_data->block_size - 1) /
+                            execution_data->block_size;
+    int num_blocks_clusters = (clusters + execution_data->block_size - 1) /
+                              execution_data->block_size;
     int num_blocks_centroids =
-        (clusters * data.bands + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        (clusters * data.bands + execution_data->block_size - 1) /
+        execution_data->block_size;
 
-    // Reserva de memoria para el cálculo de error
-    h_block_errors = (double*)malloc(num_blocks_pixels * sizeof(double));
-    if (!h_block_errors) {
-        printf("Error: Unable to allocate memory for block errors on "
-               "host\n");
-        free(h_clustering);
-        return NULL;
-    }
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
 
     // Reserva de memoria en device
     CUDA_CHECK(cudaMalloc((void**)&d_data,
@@ -537,8 +664,7 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
     CUDA_CHECK(cudaMalloc((void**)&d_yi2, clusters * sizeof(baseType)));
     CUDA_CHECK(cudaMalloc((void**)&d_count, clusters * sizeof(int)));
     CUDA_CHECK(cudaMalloc((void**)&d_clustering, data.slice * sizeof(u_char)));
-    CUDA_CHECK(cudaMalloc((void**)&d_block_errors,
-                          num_blocks_pixels * sizeof(double)));
+    CUDA_CHECK(cudaMalloc((void**)&d_total_error, sizeof(float)));
 
     execution_data->kmeans_malloc = get_time() - malloc_start;
 
@@ -552,6 +678,9 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
     CUDA_CHECK(cudaMemcpy(d_data, data.x,
                           data.slice * data.bands * sizeof(baseType),
                           cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_centroids, centroids,
+                          clusters * data.bands * sizeof(baseType),
+                          cudaMemcpyHostToDevice));
 
     execution_data->kmeans_transfer = get_time() - transfer_start;
 
@@ -560,16 +689,9 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
            execution_data->kmeans_transfer);
 #endif
 
-    double init_start = get_time();
-
-    // Inicializar centroides
-    init_centroids_kernel<<<num_blocks_clusters, BLOCK_SIZE>>>(
-        d_data, d_centroids, data.bands, clusters, data.slice, 0);
-    CUDA_CHECK(cudaDeviceSynchronize());
-
     // Calcular yi2 (norma al cuadrado de cada centroide)
-    get_yi2_kernel<<<num_blocks_clusters, BLOCK_SIZE>>>(d_yi2, d_centroids,
-                                                        data.bands, clusters);
+    get_yi2_kernel<<<num_blocks_clusters, execution_data->block_size>>>(
+        d_yi2, d_centroids, data.bands, clusters);
     CUDA_CHECK(cudaDeviceSynchronize());
 
     execution_data->kmeans_init = get_time() - init_start;
@@ -581,73 +703,116 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
 
     double execution_start = get_time();
 
+    int shared_mem_size_distance =
+        sizeof(baseType) * (clusters * data.bands + clusters);
+
+    int shared_mem_size_sum =
+        sizeof(baseType) * clusters * data.bands + sizeof(int) * clusters;
+
+    int shared_mem_size_err =
+        sizeof(float) * execution_data->block_size +
+        sizeof(baseType) * data.bands * execution_data->clusters;
+
     // Bucle principal de k-means
     for (int iter = 0; iter < iterations; iter++) {
+
 #ifdef VERBOSE
         double iter_time = get_time();
         printf("Starting iteration %d/%d\n", iter + 1, iterations);
 #endif
+        double dist_start = get_time();
 
-        // Asignar cada punto al cluster más cercano
-        assign_clusters_kernel<<<num_blocks_pixels, BLOCK_SIZE>>>(
+        assign_clusters_kernel<<<num_blocks_pixels, execution_data->block_size,
+                                 shared_mem_size_distance>>>(
             d_data, d_centroids, d_yi2, d_clustering, data.bands, clusters,
             data.slice);
         CUDA_CHECK(cudaDeviceSynchronize());
 
+        execution_data->kmeans_distance += get_time() - dist_start;
+
         // Reiniciar contadores y sumas para actualizar centroides
         CUDA_CHECK(cudaMemset(d_count, 0, clusters * sizeof(int)));
-        CUDA_CHECK(cudaMemset(d_temp_centroids, 0,
-                              clusters * data.bands * sizeof(baseType)));
-
-        // Sumar puntos por cluster para actualizar centroides
-        sum_clusters_kernel<<<num_blocks_pixels, BLOCK_SIZE,
-                              clusters * sizeof(int)>>>(
-            d_data, d_clustering, d_temp_centroids, d_count, data.bands,
-            clusters, data.slice);
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        // Actualizar centroides
-        update_centroids_kernel<<<num_blocks_centroids, BLOCK_SIZE>>>(
-            d_centroids, d_temp_centroids, d_count, data.bands, clusters);
-        CUDA_CHECK(cudaDeviceSynchronize());
-
-        // Recalcular yi2
-        get_yi2_kernel<<<num_blocks_clusters, BLOCK_SIZE>>>(
-            d_yi2, d_centroids, data.bands, clusters);
-        CUDA_CHECK(cudaDeviceSynchronize());
 
         // En la última iteración, calcular error total
         if (iter == iterations - 1) {
-            compute_error_kernel<<<num_blocks_pixels, BLOCK_SIZE,
-                                   BLOCK_SIZE * sizeof(double)>>>(
-                d_data, d_clustering, d_centroids, d_yi2, d_block_errors,
-                data.bands, data.slice);
+
+            double yi2_start = get_time();
+
+            get_yi2_kernel<<<num_blocks_clusters, execution_data->block_size>>>(
+                d_yi2, d_centroids, data.bands, clusters);
             CUDA_CHECK(cudaDeviceSynchronize());
 
-            // Transferir resultados parciales del error al host
-            CUDA_CHECK(cudaMemcpy(h_block_errors, d_block_errors,
-                                  num_blocks_pixels * sizeof(double),
-                                  cudaMemcpyDeviceToHost));
+            execution_data->kmeans_yi2 += get_time() - yi2_start;
 
-            // Calcular error total en el host
-            execution_data->kmeans_error =
-                calculate_error_from_blocks(h_block_errors, num_blocks_pixels);
+            // Luego calcular error total sin actualizar centroides
+            double error_start = get_time();
 
-#ifdef VERBOSE
-            printf("Iteration %d completed | Current error: %.6f\n", iter + 1,
-                   execution_data->kmeans_error);
-#endif
+            CUDA_CHECK(cudaMemset(d_total_error, 0, sizeof(float)));
+            compute_error_kernel<<<num_blocks_pixels,
+                                   execution_data->block_size,
+                                   shared_mem_size_err>>>(
+                d_data, d_clustering, d_centroids, d_yi2, d_total_error,
+                data.bands, clusters, data.slice);
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            execution_data->kmeans_error += get_time() - error_start;
 
             // Transferir resultado de clustering al host
             CUDA_CHECK(cudaMemcpy(h_clustering, d_clustering,
                                   data.slice * sizeof(u_char),
                                   cudaMemcpyDeviceToHost));
-        }
+
 #ifdef VERBOSE
-        else {
-            printf("Iteration %d completed\n", iter + 1);
-        }
+            printf("Iteration %d completed | Current error: %.6f\n", iter + 1,
+                   execution_data->kmeans_error);
 #endif
+            break;
+        }
+
+        double update_start_1 = get_time();
+
+        CUDA_CHECK(cudaMemset(d_temp_centroids, 0,
+                              clusters * data.bands * sizeof(baseType)));
+
+        // Sumar puntos por cluster para actualizar centroides
+        sum_clusters_kernel<<<num_blocks_pixels, execution_data->block_size,
+                              shared_mem_size_sum>>>(
+            d_data, d_clustering, d_temp_centroids, d_count, data.bands,
+            clusters, data.slice);
+        CUDA_CHECK(cudaDeviceSynchronize());
+
+        execution_data->kmeans_update_1 += get_time() - update_start_1;
+
+        double update_start_2 = get_time();
+
+        // Actualizar centroides
+        update_centroids_kernel<<<num_blocks_centroids,
+                                  execution_data->block_size>>>(
+            d_centroids, d_temp_centroids, d_count, data.bands, clusters);
+        CUDA_CHECK(cudaDeviceSynchronize());
+
+        execution_data->kmeans_update_2 += get_time() - update_start_2;
+
+        double yi2_start = get_time();
+
+        // Recalcular yi2
+        get_yi2_kernel<<<num_blocks_clusters, execution_data->block_size>>>(
+            d_yi2, d_centroids, data.bands, clusters);
+        CUDA_CHECK(cudaDeviceSynchronize());
+
+        execution_data->kmeans_yi2 += get_time() - yi2_start;
+
+        // Luego calcular error total
+        double error_start = get_time();
+
+        CUDA_CHECK(cudaMemset(d_total_error, 0, sizeof(float)));
+        compute_error_kernel<<<num_blocks_pixels, execution_data->block_size,
+                               shared_mem_size_err>>>(
+            d_data, d_clustering, d_centroids, d_yi2, d_total_error, data.bands,
+            clusters, data.slice);
+        CUDA_CHECK(cudaDeviceSynchronize());
+
+        execution_data->kmeans_error += get_time() - error_start;
     }
 
     execution_data->kmeans_execution = get_time() - execution_start;
@@ -657,6 +822,56 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
            execution_data->kmeans_execution);
 #endif
 
+    // Calcular el número máximo de bloques activos por multiprocesador para
+    // cada kernel
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &execution_data->maxBlocksPerSM_distance, assign_clusters_kernel,
+        execution_data->block_size, shared_mem_size_distance));
+
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &execution_data->maxBlocksPerSM_sum, sum_clusters_kernel,
+        execution_data->block_size, shared_mem_size_sum));
+
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &execution_data->maxBlocksPerSM_update, update_centroids_kernel,
+        execution_data->block_size,
+        0)); // Sin memoria compartida dinámica
+
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &execution_data->maxBlocksPerSM_yi2, get_yi2_kernel,
+        execution_data->block_size,
+        0)); // Sin memoria compartida dinámica
+
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &execution_data->maxBlocksPerSM_error, compute_error_kernel,
+        execution_data->block_size,
+        shared_mem_size_err)); // Memoria compartida para reducción
+
+    execution_data->occupancy_distance =
+        (float)(execution_data->maxBlocksPerSM_distance *
+                execution_data->block_size) /
+        prop.maxThreadsPerMultiProcessor;
+
+    execution_data->occupancy_sum = (float)(execution_data->maxBlocksPerSM_sum *
+                                            execution_data->block_size) /
+                                    prop.maxThreadsPerMultiProcessor;
+
+    execution_data->occupancy_update =
+        (float)(execution_data->maxBlocksPerSM_update *
+                execution_data->block_size) /
+        prop.maxThreadsPerMultiProcessor;
+
+    execution_data->occupancy_yi2 = (float)(execution_data->maxBlocksPerSM_yi2 *
+                                            execution_data->block_size) /
+                                    prop.maxThreadsPerMultiProcessor;
+
+    execution_data->occupancy_error =
+        (float)(execution_data->maxBlocksPerSM_error *
+                execution_data->block_size) /
+        prop.maxThreadsPerMultiProcessor;
+
+    double free_start = get_time();
+
     // Liberar memoria en el dispositivo
     cudaFree(d_data);
     cudaFree(d_centroids);
@@ -664,9 +879,15 @@ u_char* compute_kmeans_cuda(const HSI& data, int clusters, int iterations,
     cudaFree(d_yi2);
     cudaFree(d_count);
     cudaFree(d_clustering);
-    cudaFree(d_block_errors);
+    cudaFree(d_total_error);
 
-    free(h_block_errors);
+    free(centroids);
+
+    execution_data->kmeans_free = get_time() - free_start;
+
+#ifdef VERBOSE
+    printf("Memory freed in %.6f seconds\n", execution_data->kmeans_free);
+#endif
 
     execution_data->kmeans_total = get_time() - kmeans_start;
 
